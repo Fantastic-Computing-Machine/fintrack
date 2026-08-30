@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: fintrack
+      POSTGRES_USER: fintrack
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U fintrack"], interval: 5s, timeout: 5s, retries: 10 }
+  api:
+    build: ./api
+    env_file:
+      - path: ./api/.env
+        format: raw
+    environment:
+      DATABASE_URL: postgresql+psycopg://fintrack:${POSTGRES_PASSWORD}@postgres:5432/fintrack
+    ports: ["8000:8000"]
+    depends_on: { postgres: { condition: service_healthy } }
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"], interval: 5s, timeout: 5s, retries: 20 }
+  worker:
+    build: ./api
+    command: ["uv", "run", "python", "-m", "fintrack.worker"]
+    env_file:
+      - path: ./api/.env
+        format: raw
+    environment:
+      DATABASE_URL: postgresql+psycopg://fintrack:${POSTGRES_PASSWORD}@postgres:5432/fintrack
+    depends_on: { api: { condition: service_healthy } }
+  app:
+    build:
+      context: ./app
+      args: { NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000}" }
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  postgres-data:

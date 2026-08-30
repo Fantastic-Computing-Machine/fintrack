@@ -1,0 +1,35 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fintrack_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { python-version: "3.14" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm, cache-dependency-path: app/package-lock.json }
+      - name: Backend tests
+        working-directory: api
+        env:
+          APP__ENVIRONMENT: test
+          SESSION_SIGNING_KEY: test-signing-key-at-least-32-bytes
+          OWNER_PASSWORD_HASH: unused
+          TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/fintrack_test
+        run: uv run pytest -q
+      - name: Frontend checks
+        working-directory: app
+        run: npm ci && npm run lint && npm run build

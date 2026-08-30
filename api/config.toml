@@ -1,0 +1,26 @@
+[app]
+environment = "development"
+api_url = "http://localhost:8000"
+frontend_url = "http://localhost:3000"
+log_level = "INFO"
+session_hours = 12
+trusted_hosts = ["localhost", "127.0.0.1"]
+webhook_url = ""
+max_webhook_bytes = 65536
+
+[database]
+echo = false
+pool_size = 5
+max_overflow = 10
+
+[sync]
+fallback_hours = 8
+queue_seconds = 5
+max_attempts = 5
+history_days = 730
+stale_hours = 12
+
+[plaid]
+environment = "sandbox"
+country_codes = ["US"]
+products = ["transactions", "liabilities"]

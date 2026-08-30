@@ -1,0 +1,28 @@
+[project]
+name = "fin-track"
+version = "0.1.0"
+description = "Single-owner financial dashboard API"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+  "aiosqlite>=0.21",
+  "alembic>=1.16",
+  "apscheduler>=3.11",
+  "cryptography>=45",
+  "fastapi>=0.116",
+  "httpx>=0.28",
+  "psycopg[binary]>=3.2",
+  "pydantic-settings>=2.10",
+  "python-dotenv>=1.1",
+  "pwdlib[argon2]>=0.2",
+  "PyJWT[crypto]>=2.10",
+  "sqlalchemy[asyncio]>=2.0",
+  "uvicorn[standard]>=0.35",
+]
+
+[dependency-groups]
+dev = ["httpx>=0.28", "pytest>=8.4", "pytest-asyncio>=1.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
