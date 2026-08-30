@@ -4,6 +4,7 @@ import { usePlaidLink, type PlaidLinkOnSuccess } from "react-plaid-link";
 import { useRouter } from "next/navigation";
 import { KeyRound, Link2, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { mutate } from "@/lib/api";
 
@@ -18,12 +19,12 @@ export function ConnectButton({ connectionId, label = "Connect institution" }: {
 
 export function RotateTokenButton({ id }: { id: number }) {
   const router = useRouter(); const [busy, setBusy] = useState(false);
-  return <Button variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); try { await mutate(`/connections/${id}/rotate-token`); router.refresh(); } finally { setBusy(false); } }}><KeyRound className="size-4" />Rotate token</Button>;
+  return <Button variant="outline" size="sm" disabled={busy} onClick={async () => { setBusy(true); try { await mutate(`/connections/${id}/rotate-token`); toast.success("Token rotated"); router.refresh(); } catch { toast.error("Could not rotate token"); } finally { setBusy(false); } }}><KeyRound className="size-4" />Rotate token</Button>;
 }
 
 export function RefreshButton() {
   const router = useRouter(); const [busy, setBusy] = useState(false);
-  return <Button variant="outline" disabled={busy} onClick={async () => { setBusy(true); await mutate("/sync", "POST", {}); setTimeout(() => { setBusy(false); router.refresh(); }, 1200); }}><RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} />{busy ? "Refreshing…" : "Refresh all"}</Button>;
+  return <Button variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { await mutate("/sync", "POST", {}); toast.success("Refresh queued"); setTimeout(() => { setBusy(false); router.refresh(); }, 1200); } catch { setBusy(false); toast.error("Could not queue refresh"); } }}><RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} />{busy ? "Refreshing…" : "Refresh all"}</Button>;
 }
 
 export function DisconnectButton({ id, name }: { id: number; name: string }) {

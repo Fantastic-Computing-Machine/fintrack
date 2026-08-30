@@ -123,7 +123,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image: radial-gradient(circle at 20% 0%, color-mix(in oklch, var(--primary) 7%, transparent), transparent 28rem);
   }
   html {
     @apply font-sans;
