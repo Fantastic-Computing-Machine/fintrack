@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from fintrack.core.config import Settings, get_settings
 from fintrack.db.base import get_db
 from fintrack.db.meta import Base
-from fintrack.db.models import Account, Connection, Transaction
+from fintrack.db.models import Account, Connection, SyncRun, Transaction
 from fintrack.main import app
 from fintrack.routers.api import fuzzy_transaction_match
 
@@ -37,6 +37,9 @@ def test_auth_csrf_and_cursor_pagination(tmp_path):
         csrf = client.cookies["fintrack_csrf"]
         assert client.post("/api/v1/sync", json={}).status_code == 403
         assert client.post("/api/v1/sync", json={}, headers={"X-CSRF-Token": csrf}).status_code == 202
+        assert client.get("/api/v1/dashboard-preferences").json() == {"account_grouping": "institution", "hide_balances": False}
+        assert client.post("/api/v1/dashboard-preferences", json={"account_grouping": "account_type"}, headers={"X-CSRF-Token": csrf}).json()["account_grouping"] == "account_type"
+        assert client.post("/api/v1/dashboard-preferences", json={"hide_balances": True}, headers={"X-CSRF-Token": csrf}).json()["hide_balances"] is True
 
         async def seed():
             async with Session() as db:
@@ -49,6 +52,7 @@ def test_auth_csrf_and_cursor_pagination(tmp_path):
                 db.add(Account(connection_id=disconnected.id, provider_account_id="old-account", name="Old checking", type="depository", currency="USD", current_balance=Decimal("500.00")))
                 for index in range(3):
                     db.add(Transaction(account_id=account.id, provider_transaction_id=f"txn-{index}", date=date(2026, 8, 29), amount=Decimal(index), currency="USD", description=f"Transaction {index}", provider_updated_at=datetime.now(timezone.utc)))
+                db.add(SyncRun(connection_id=connection.id, trigger="manual", status="succeeded", started_at=datetime(2026, 8, 29, tzinfo=timezone.utc), finished_at=datetime(2026, 8, 29, tzinfo=timezone.utc), available_at=datetime(2026, 8, 29, tzinfo=timezone.utc)))
                 await db.commit()
         asyncio.run(seed())
         first = client.get("/api/v1/transactions?limit=2").json()
@@ -64,6 +68,7 @@ def test_auth_csrf_and_cursor_pagination(tmp_path):
         custom_analytics = client.get("/api/v1/analytics?start=2026-08-28&end=2026-08-29")
         assert custom_analytics.status_code == 200 and custom_analytics.json()["range"] == "custom"
         assert client.get("/api/v1/analytics?range=custom").status_code == 422
+        assert len(client.get("/api/v1/sync-runs?start=2026-08-29&end=2026-08-29").json()) == 1
     app.dependency_overrides.clear()
 
 

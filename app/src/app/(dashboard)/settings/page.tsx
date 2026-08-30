@@ -15,9 +15,11 @@ import {
   RefreshButton,
   RotateTokenButton,
 } from "@/components/plaid/connection-actions";
-import { shortDate } from "@/lib/api";
+import { shortDate, shortDateTime } from "@/lib/api";
 import { api } from "@/lib/api-server";
-import type { Connection, SyncRun } from "@/lib/types";
+import { DashboardPreferenceSelect } from "@/components/settings/dashboard-preference";
+import { SyncRunFilters } from "@/components/settings/sync-run-filters";
+import type { Connection, DashboardPreference, SyncRun } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ function ConnectionRow({ connection }: { connection: Connection }) {
   const disconnected = connection.status === "disconnected";
   const active = connection.status === "active";
   return (
-    <div className="flex flex-col justify-between gap-4 py-6 sm:flex-row sm:items-center">
+    <div className="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
       <div className="flex items-start gap-3">
         {active ? (
           <CheckCircle2 className="mt-0.5 size-5 text-primary" />
@@ -79,10 +81,15 @@ function ConnectionRow({ connection }: { connection: Connection }) {
   );
 }
 
-export default async function SettingsPage() {
-  const [connections, runs] = await Promise.all([
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const params = await searchParams;
+  const syncQuery = new URLSearchParams();
+  if (params.start) syncQuery.set("start", params.start);
+  if (params.end) syncQuery.set("end", params.end);
+  const [connections, runs, preference] = await Promise.all([
     api<Connection[]>("/connections"),
-    api<SyncRun[]>("/sync-runs"),
+    api<SyncRun[]>(`/sync-runs?${syncQuery}`),
+    api<DashboardPreference>("/dashboard-preferences"),
   ]);
   const connected = connections.filter(
     (connection) => connection.status !== "disconnected",
@@ -91,8 +98,8 @@ export default async function SettingsPage() {
     (connection) => connection.status === "disconnected",
   );
   return (
-    <div className="space-y-12 animate-rise">
-      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+    <div className="space-y-8 animate-rise">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
             Data sources
@@ -118,7 +125,7 @@ export default async function SettingsPage() {
         </AlertDescription>
       </Alert>
       <section>
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">Connected institutions</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -141,9 +148,18 @@ export default async function SettingsPage() {
           )}
         </div>
       </section>
+      <section className="border-y py-4">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-xl font-semibold">Overview layout</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Choose how account balances are grouped on Overview.</p>
+          </div>
+          <DashboardPreferenceSelect preference={preference} />
+        </div>
+      </section>
       {disconnected.length > 0 && (
-        <details className="group rounded-lg border bg-card">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring">
+        <details className="group w-full rounded-lg border bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 font-medium outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring">
             <span>Disconnected history</span>
             <span className="text-sm font-normal text-muted-foreground">
               {disconnected.length}{" "}
@@ -152,19 +168,24 @@ export default async function SettingsPage() {
               <span className="hidden group-open:inline">Hide</span>
             </span>
           </summary>
-          <div className="divide-y border-t px-5">
-            {disconnected.map((connection) => (
-              <ConnectionRow key={connection.id} connection={connection} />
-            ))}
+          <div data-slot="disclosure-content">
+            <div className="divide-y border-t px-5">
+              {disconnected.map((connection) => (
+                <ConnectionRow key={connection.id} connection={connection} />
+              ))}
+            </div>
           </div>
         </details>
       )}
       <section>
-        <div className="mb-5">
-          <h2 className="text-xl font-semibold">Recent syncs</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The latest provider import attempts.
-          </p>
+        <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <h2 className="text-xl font-semibold">Recent syncs</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The latest provider import attempts.
+            </p>
+          </div>
+          <SyncRunFilters />
         </div>
         <div className="overflow-x-auto rounded-lg border bg-card">
           <Table>
@@ -180,7 +201,7 @@ export default async function SettingsPage() {
               {runs.length ? (
                 runs.map((run) => (
                   <TableRow key={run.id}>
-                    <TableCell>{shortDate(run.started_at)}</TableCell>
+                    <TableCell>{shortDateTime(run.started_at)}</TableCell>
                     <TableCell className="capitalize">{run.trigger}</TableCell>
                     <TableCell>
                       <span className="flex items-center gap-2">

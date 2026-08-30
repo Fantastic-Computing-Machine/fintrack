@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import Settings, get_settings
 from ..db.base import SessionLocal
-from ..db.models import Account, AccountBalanceSnapshot, Connection, CreditCardLiability, SyncRun, Transaction, WebhookEvent
+from ..db.models import Account, AccountBalanceSnapshot, Connection, CreditCardLiability, LoanLiability, SyncRun, Transaction, WebhookEvent
 from ..integrations.plaid import PlaidClient, PlaidError
 
 
@@ -87,6 +87,7 @@ async def _apply_sync(
     final_cursor: str | None,
     balances: list[dict[str, Any]],
     liabilities: list[dict[str, Any]],
+    loan_liabilities: list[dict[str, Any]],
     pages: list[dict[str, Any]],
     timezone_name: str,
 ) -> None:
@@ -193,6 +194,21 @@ async def _apply_sync(
             )
             await db.execute(statement)
 
+        for raw in loan_liabilities:
+            account_id = account_ids.get(raw["account_id"])
+            if not account_id:
+                continue
+            values = {
+                "account_id": account_id,
+                "next_payment_amount": raw.get("next_monthly_payment") or raw.get("minimum_payment_amount"),
+                "next_payment_due_date": as_date(raw.get("next_payment_due_date")),
+                "provider_updated_at": now,
+            }
+            statement = _insert(db, LoanLiability).values(**values).on_conflict_do_update(
+                index_elements=["account_id"], set_={key: value for key, value in values.items() if key != "account_id"}
+            )
+            await db.execute(statement)
+
         connection.sync_cursor = final_cursor
         connection.status = "active"
         connection.last_success_at = now
@@ -220,14 +236,17 @@ async def sync_connection(connection_id: int, run_id: int, settings: Settings | 
         pages, final_cursor = await _fetch_all(client, token, starting_cursor)
         try:
             liability_data = await client.liabilities(token)
-            liabilities = (liability_data.get("liabilities") or {}).get("credit") or []
+            all_liabilities = liability_data.get("liabilities") or {}
+            liabilities = all_liabilities.get("credit") or []
+            loan_liabilities = [*(all_liabilities.get("mortgage") or []), *(all_liabilities.get("student") or [])]
         except PlaidError as exc:
             if exc.code in {"PRODUCT_NOT_READY", "NO_LIABILITY_ACCOUNTS"}:
                 liabilities = []
+                loan_liabilities = []
             else:
                 raise
         async with SessionLocal() as db:
-            await _apply_sync(db, connection_id, run_id, starting_cursor, final_cursor, balance_data.get("accounts") or [], liabilities, pages, settings.app.timezone)
+            await _apply_sync(db, connection_id, run_id, starting_cursor, final_cursor, balance_data.get("accounts") or [], liabilities, loan_liabilities, pages, settings.app.timezone)
     except Exception as exc:
         async with SessionLocal() as db:
             run = await db.get(SyncRun, run_id)

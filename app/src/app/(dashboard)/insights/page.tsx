@@ -63,7 +63,7 @@ export default async function Insights({
   const largest = analytics.spending_categories[0];
 
   return (
-    <div className="space-y-12 animate-rise">
+    <div className="space-y-10 animate-rise">
       <section>
         <div className="flex flex-col justify-between gap-6 border-b pb-6 lg:flex-row lg:items-end">
           <div>

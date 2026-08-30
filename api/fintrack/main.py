@@ -15,6 +15,29 @@ from .mcp_server import create_mcp_server
 from .routers.api import router
 from .worker import start_worker, stop_worker
 
+OPENAPI_TAGS = [
+    {"name": "Authentication", "description": "Owner session and CSRF-cookie lifecycle."},
+    {"name": "Dashboard", "description": "Balances, financial summary, and dashboard preferences."},
+    {"name": "Transactions", "description": "Transaction search and cursor pagination."},
+    {"name": "Credit cards", "description": "Credit-card liability and payment information."},
+    {"name": "Analytics", "description": "Cash flow, category spending, and debt history."},
+    {"name": "Plaid connections", "description": "Institution linking and connection management."},
+    {"name": "Synchronization", "description": "Background synchronization status and manual queueing."},
+    {"name": "Webhooks", "description": "Plaid provider webhook ingestion."},
+    {"name": "Health", "description": "Service liveness and database readiness probes."},
+]
+
+API_DESCRIPTION = """Private, single-owner finance dashboard API.
+
+### Authentication
+
+Call `POST /api/v1/auth/login` first. It sets an HTTP-only session cookie and a readable CSRF cookie. Authenticated state-changing requests must include the session cookie, originate from the configured frontend URL, and copy the CSRF cookie value into the `X-CSRF-Token` header.
+
+### Data handling
+
+Amounts are decimal values serialized as JSON strings. Plaid access tokens and database credentials are never returned. The separate `/mcp` endpoint is not part of this HTTP API specification.
+"""
+
 
 def create_app(app_settings=None) -> FastAPI:
     active_settings = app_settings or get_settings()
@@ -37,7 +60,7 @@ def create_app(app_settings=None) -> FastAPI:
             await PlaidClient.close()
             await engine.dispose()
 
-    app = FastAPI(title="Fin Track API", version="0.2.0", lifespan=lifespan, docs_url="/docs" if active_settings.docs_enable else None, redoc_url="/redoc" if active_settings.docs_enable else None, openapi_url="/openapi.json" if active_settings.docs_enable else None)
+    app = FastAPI(title="Fin Track API", summary="Private Plaid-backed finance dashboard", description=API_DESCRIPTION, version="0.2.0", openapi_tags=OPENAPI_TAGS, lifespan=lifespan, docs_url="/docs" if active_settings.docs_enable else None, redoc_url="/redoc" if active_settings.docs_enable else None, openapi_url="/openapi.json" if active_settings.docs_enable else None)
     app.dependency_overrides[get_settings] = lambda: active_settings
     if production:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=active_settings.app.trusted_hosts)
@@ -55,11 +78,11 @@ def create_app(app_settings=None) -> FastAPI:
                     return Response(status_code=401, headers={"WWW-Authenticate": "Bearer"})
             return await call_next(request)
 
-    @app.get("/health/live")
+    @app.get("/health/live", tags=["Health"], summary="Check process liveness", description="Returns success while the API process is running.")
     async def live():
         return {"status": "ok"}
 
-    @app.get("/health/ready")
+    @app.get("/health/ready", tags=["Health"], summary="Check database readiness", description="Returns success only when the API can execute a database query.")
     async def ready():
         async with engine.connect() as connection:
             await connection.execute(text("SELECT 1"))

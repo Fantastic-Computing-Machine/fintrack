@@ -18,18 +18,35 @@ import {
 } from "@/components/ui/table";
 import { money, shortDate } from "@/lib/api";
 import { api } from "@/lib/api-server";
-import type { Account, Card, Summary } from "@/lib/types";
+import { OverviewPrivacy, PrivateAmount, PrivacyToggle } from "@/components/overview/overview-privacy";
+import type { Account, Card, DashboardPreference, Loan, Summary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+function groupLabel(account: Account, grouping: "institution" | "account_type") {
+  if (grouping === "institution") return account.institution_name;
+  return (account.subtype ?? account.type).replaceAll("_", " ");
+}
+
+function total(accounts: Account[], key: "current_balance" | "available_balance") {
+  const values = accounts.map((account) => account[key]).filter((value): value is string => value !== null);
+  return values.length ? money(String(values.reduce((sum, value) => sum + Number(value), 0)), accounts[0].currency) : "Unavailable";
+}
+
 export default async function Overview() {
-  const [summary, accounts, cards] = await Promise.all([
+  const [summary, accounts, cards, loans, preference] = await Promise.all([
     api<Summary>("/summary"),
     api<Account[]>("/accounts"),
     api<Card[]>("/cards"),
+    api<Loan[]>("/loans"),
+    api<DashboardPreference>("/dashboard-preferences"),
   ]);
-  return (
-    <div className="space-y-14 animate-rise">
+  const groups = Object.entries(accounts.reduce<Record<string, Account[]>>((result, account) => {
+    const label = groupLabel(account, preference.account_grouping);
+    (result[label] ??= []).push(account);
+    return result;
+  }, {})).sort(([a], [b]) => a.localeCompare(b));
+  return <OverviewPrivacy initialHidden={preference.hide_balances}><div className="space-y-10 animate-rise">
       <section>
         <div className="flex items-end justify-between gap-8">
           <div>
@@ -37,31 +54,34 @@ export default async function Overview() {
               Net position
             </p>
             <h1 className="mt-3 break-words text-4xl font-medium tracking-[-.045em] sm:text-7xl">
-              {money(summary.net_position)}
+              <PrivateAmount>{money(summary.net_position)}</PrivateAmount>
             </h1>
           </div>
-          <div className="hidden text-right text-sm text-muted-foreground sm:block">
+          <div className="flex items-start gap-2 text-right text-sm text-muted-foreground">
+            <div className="hidden sm:block">
             <p>Last sync</p>
             <p className="mt-1 text-foreground">
               {summary.last_success_at
                 ? shortDate(summary.last_success_at)
                 : "Never"}
             </p>
+            </div>
+            <PrivacyToggle />
           </div>
         </div>
-        <div className="mt-10 grid gap-8 border-y py-6 sm:grid-cols-2">
+        <div className="mt-7 grid gap-6 border-y py-5 sm:grid-cols-2">
           <div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <ArrowUpRight className="size-4 text-primary" /> Cash
             </div>
-            <p className="mt-2 text-2xl font-semibold">{money(summary.cash)}</p>
+            <p className="mt-2 text-2xl font-semibold"><PrivateAmount>{money(summary.cash)}</PrivateAmount></p>
           </div>
           <div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <ArrowDownRight className="size-4" /> Card debt
             </div>
             <p className="mt-2 text-2xl font-semibold">
-              {money(summary.credit_card_debt)}
+              <PrivateAmount>{money(summary.credit_card_debt)}</PrivateAmount>
             </p>
           </div>
         </div>
@@ -77,7 +97,7 @@ export default async function Overview() {
         </Alert>
       )}
       <section>
-        <div className="mb-5 flex items-end justify-between">
+        <div className="mb-4 flex items-end justify-between">
           <div>
             <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
               Balances
@@ -90,84 +110,49 @@ export default async function Overview() {
             {accounts.length} accounts
           </span>
         </div>
-        <div className="overflow-x-auto rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Institution / account</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Available</TableHead>
-                <TableHead className="text-right">Current</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {accounts.length ? (
-                accounts.map((account) => (
-                  <TableRow key={account.id} className="group">
-                    <TableCell>
-                      <Link
-                        href={`/accounts/${account.id}`}
-                        className="flex items-center gap-2 rounded-sm font-medium outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <span>
-                          {account.name}{" "}
-                          {account.mask && (
-                            <span className="text-muted-foreground">
-                              ··{account.mask}
-                            </span>
-                          )}
-                        </span>
-                        <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {account.institution_name}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className="font-normal capitalize"
-                      >
-                        {account.subtype?.replaceAll("_", " ") ?? account.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {money(account.available_balance, account.currency)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-medium">
-                      {money(account.current_balance, account.currency)}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="h-28 text-center text-muted-foreground"
-                  >
-                    Connect your first institution in Settings.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        {groups.length ? <div className="border-y">
+          {groups.map(([label, group]) => <details key={label} className="group border-b last:border-b-0">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className="min-w-0">
+                <p className="truncate font-semibold capitalize">{label}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{group.length} {group.length === 1 ? "account" : "accounts"} · Current <PrivateAmount>{total(group, "current_balance")}</PrivateAmount></p>
+              </div>
+              <div className="hidden text-right sm:block">
+                <p className="text-xs text-muted-foreground">Available</p>
+                <p className="mt-1 font-mono text-sm font-medium"><PrivateAmount>{total(group, "available_balance")}</PrivateAmount></p>
+              </div>
+              <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 ease-out group-open:rotate-90" />
+            </summary>
+            <div data-slot="disclosure-content">
+              <div className="overflow-x-auto border-t">
+              <Table>
+                <TableHeader><TableRow><TableHead>Account</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">Current</TableHead></TableRow></TableHeader>
+                <TableBody>{group.map((account) => <TableRow key={account.id} className="group/row">
+                  <TableCell><Link href={`/accounts/${account.id}`} className="flex items-center gap-2 rounded-sm font-medium outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"><span>{account.name} {account.mask && <span className="text-muted-foreground">··{account.mask}</span>}</span><ChevronRight className="size-4 text-muted-foreground transition-transform group-hover/row:translate-x-0.5" /></Link>{preference.account_grouping === "account_type" && <p className="text-xs text-muted-foreground">{account.institution_name}</p>}</TableCell>
+                  <TableCell><Badge variant="secondary" className="font-normal capitalize">{account.subtype?.replaceAll("_", " ") ?? account.type}</Badge></TableCell>
+                  <TableCell className="text-right font-mono"><PrivateAmount>{money(account.available_balance, account.currency)}</PrivateAmount></TableCell>
+                  <TableCell className="text-right font-mono font-medium"><PrivateAmount>{money(account.current_balance, account.currency)}</PrivateAmount></TableCell>
+                </TableRow>)}</TableBody>
+              </Table>
+              </div>
+            </div>
+          </details>)}</div> : <p className="border-y py-12 text-center text-muted-foreground">Connect your first institution in Settings.</p>}
       </section>
       <section>
-        <div className="mb-6">
+        <div className="mb-4">
           <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
             Obligations
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-            Card bills
+            Upcoming payments
           </h2>
         </div>
-        {cards.length ? (
+        {cards.length || loans.length ? (
           <div className="divide-y border-y">
             {cards.map((card) => (
               <article
                 key={card.account_id}
-                className="grid gap-5 py-7 md:grid-cols-[1.4fr_repeat(3,1fr)] md:items-center"
+                className="grid gap-4 py-5 md:grid-cols-[1.4fr_repeat(3,1fr)] md:items-center"
               >
                 <div>
                   <Link
@@ -191,13 +176,13 @@ export default async function Overview() {
                     Current balance
                   </p>
                   <p className="mt-1 font-mono font-medium">
-                    {money(card.current_balance)}
+                    <PrivateAmount>{money(card.current_balance)}</PrivateAmount>
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Minimum due</p>
                   <p className="mt-1 font-mono font-medium">
-                    {money(card.minimum_payment)}
+                    <PrivateAmount>{money(card.minimum_payment)}</PrivateAmount>
                   </p>
                 </div>
                 <div>
@@ -209,13 +194,41 @@ export default async function Overview() {
                 </div>
               </article>
             ))}
+            {loans.map((loan) => (
+              <article
+                key={loan.account_id}
+                className="grid gap-4 py-5 md:grid-cols-[1.4fr_repeat(3,1fr)] md:items-center"
+              >
+                <div>
+                  <Link
+                    href={`/accounts/${loan.account_id}`}
+                    className="inline-flex items-center gap-1 rounded-sm font-semibold outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {loan.account_name} {loan.mask && <span className="font-normal text-muted-foreground">··{loan.mask}</span>}
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </Link>
+                  <p className="mt-1 text-sm text-muted-foreground">{loan.institution_name} · Loan</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Outstanding balance</p>
+                  <p className="mt-1 font-mono font-medium"><PrivateAmount>{money(loan.current_balance)}</PrivateAmount></p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Scheduled payment</p>
+                  <p className="mt-1 font-mono font-medium"><PrivateAmount>{money(loan.next_payment_amount)}</PrivateAmount></p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Due date</p>
+                  <p className="mt-1 flex items-center gap-2 font-medium"><Clock3 className="size-4 text-muted-foreground" /> {shortDate(loan.next_payment_due_date)}</p>
+                </div>
+              </article>
+            ))}
           </div>
         ) : (
           <p className="border-y py-12 text-center text-muted-foreground">
-            No credit-card accounts are available.
+            No card or loan repayment details are available.
           </p>
         )}
       </section>
-    </div>
-  );
+    </div></OverviewPrivacy>;
 }

@@ -23,6 +23,11 @@ def test_mcp_settings_and_feature_gates():
             app = create_app(settings)
             with TestClient(app, base_url="http://localhost:8000") as client:
                 assert client.get("/docs").status_code == (200 if docs_enabled else 404)
+                if docs_enabled:
+                    schema = client.get("/openapi.json").json()
+                    assert schema["info"]["summary"] == "Private Plaid-backed finance dashboard"
+                    assert schema["paths"]["/api/v1/transactions"]["get"]["summary"] == "Search and paginate transactions"
+                    assert "APIKeyCookie" in schema["components"]["securitySchemes"]
                 if mcp_enabled:
                     assert client.get("/mcp").status_code == 401
                     assert client.get("/mcp", headers={"Authorization": "Basic test-token"}).status_code == 401

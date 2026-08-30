@@ -45,6 +45,7 @@ class Account(Base):
     balance_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     connection: Mapped[Connection] = relationship(back_populates="accounts")
     liability: Mapped["CreditCardLiability | None"] = relationship(back_populates="account", uselist=False, cascade="all, delete-orphan")
+    loan_liability: Mapped["LoanLiability | None"] = relationship(back_populates="account", uselist=False, cascade="all, delete-orphan")
     __table_args__ = (
         UniqueConstraint("connection_id", "provider_account_id", name="uq_accounts_connection_provider"),
         CheckConstraint("length(currency) = 3", name="ck_accounts_currency"),
@@ -107,6 +108,16 @@ class CreditCardLiability(Base):
     __table_args__ = (Index("ix_cards_due_account", "next_payment_due_date", "account_id"),)
 
 
+class LoanLiability(Base):
+    __tablename__ = "loan_liabilities"
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
+    next_payment_amount: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
+    next_payment_due_date: Mapped[date | None] = mapped_column(Date)
+    provider_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    account: Mapped[Account] = relationship(back_populates="loan_liability")
+    __table_args__ = (Index("ix_loans_due_account", "next_payment_due_date", "account_id"),)
+
+
 class SyncRun(Base):
     __tablename__ = "sync_runs"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -147,4 +158,15 @@ class WebhookEvent(Base):
         CheckConstraint("status IN ('queued','processing','processed','ignored','retry_wait','failed')", name="ck_webhook_status"),
         Index("ix_webhook_ready", "status", "available_at", "id"),
         Index("ix_webhook_item_received", "provider_item_id", received_at.desc()),
+    )
+
+
+class DashboardPreference(Base):
+    __tablename__ = "dashboard_preferences"
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    account_grouping: Mapped[str] = mapped_column(String(20), default="institution")
+    hide_balances: Mapped[bool] = mapped_column(Boolean, default=False)
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_dashboard_preferences_singleton"),
+        CheckConstraint("account_grouping IN ('institution','account_type')", name="ck_dashboard_preferences_account_grouping"),
     )

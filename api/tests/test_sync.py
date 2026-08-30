@@ -7,20 +7,20 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from fintrack.core.config import Settings
 from fintrack.db.meta import Base
-from fintrack.db.models import AccountBalanceSnapshot, Connection, SyncRun, Transaction
+from fintrack.db.models import AccountBalanceSnapshot, Connection, LoanLiability, SyncRun, Transaction
 from fintrack.services import sync
 
 
 class FakePlaid:
     def __init__(self, _): pass
     async def balances(self, _):
-        return {"accounts": [{"account_id": "account", "name": "Credit card", "type": "credit", "subtype": "credit card", "balances": {"current": 100, "available": 90, "iso_currency_code": "USD"}}]}
+        return {"accounts": [{"account_id": "account", "name": "Credit card", "type": "credit", "subtype": "credit card", "balances": {"current": 100, "available": 90, "iso_currency_code": "USD"}}, {"account_id": "loan", "name": "Student loan", "type": "loan", "subtype": "student", "balances": {"current": 500, "iso_currency_code": "USD"}}]}
     async def transactions_sync(self, _, cursor):
         transaction = {"account_id": "account", "date": "2026-08-29", "amount": 10, "name": "Coffee", "iso_currency_code": "USD"}
         if not cursor:
             return {"added": [{**transaction, "transaction_id": "pending", "pending": True}], "modified": [], "removed": [], "next_cursor": "next", "has_more": False}
         return {"added": [{**transaction, "transaction_id": "posted", "pending_transaction_id": "pending", "pending": False}], "modified": [], "removed": [], "next_cursor": "next", "has_more": False}
-    async def liabilities(self, _): return {"liabilities": {"credit": None}}
+    async def liabilities(self, _): return {"liabilities": {"credit": None, "student": [{"account_id": "loan", "minimum_payment_amount": 25, "next_payment_due_date": "2026-09-01"}]}}
 
 
 @pytest.mark.asyncio
@@ -43,7 +43,9 @@ async def test_sync_consolidates_pending_transactions(tmp_path, monkeypatch):
     async with Session() as db:
         pending = await db.scalar(select(Transaction))
         assert pending.pending is True and pending.removed is False
-        assert len((await db.scalars(select(AccountBalanceSnapshot))).all()) == 1
+        assert len((await db.scalars(select(AccountBalanceSnapshot))).all()) == 2
+        loan = await db.scalar(select(LoanLiability))
+        assert loan.next_payment_amount == 25 and loan.next_payment_due_date.isoformat() == "2026-09-01"
         second = SyncRun(connection_id=connection_id, trigger="manual", status="running", started_at=now, available_at=now, attempt_count=1)
         db.add(second); await db.commit(); second_id = second.id
     await sync.sync_connection(connection_id, second_id, settings)
@@ -51,7 +53,7 @@ async def test_sync_consolidates_pending_transactions(tmp_path, monkeypatch):
         rows = {row.provider_transaction_id: row for row in (await db.scalars(select(Transaction))).all()}
         assert rows["pending"].removed is True
         assert rows["posted"].removed is False
-        assert len((await db.scalars(select(AccountBalanceSnapshot))).all()) == 1
+        assert len((await db.scalars(select(AccountBalanceSnapshot))).all()) == 2
     await engine.dispose()
 
 

@@ -23,3 +23,7 @@ export function money(value: string | null, currency = "USD") {
 export function shortDate(value: string | null) {
   return value ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value.length === 10 ? value + "T12:00:00" : value}`)) : "Unavailable";
 }
+
+export function shortDateTime(value: string | null) {
+  return value ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Unavailable";
+}

@@ -29,6 +29,19 @@ class LinkTokenRequest(StrictModel):
     connection_id: int | None = None
 
 
+AccountGrouping = Literal["institution", "account_type"]
+
+
+class DashboardPreferenceOut(BaseModel):
+    account_grouping: AccountGrouping
+    hide_balances: bool
+
+
+class DashboardPreferenceUpdate(StrictModel):
+    account_grouping: AccountGrouping | None = None
+    hide_balances: bool | None = None
+
+
 class ConnectionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -147,6 +160,17 @@ class CardOut(BaseModel):
     purchase_apr: Decimal | None
     interest_charge: Decimal | None
     is_overdue: bool | None
+    provider_updated_at: datetime | None
+
+
+class LoanOut(BaseModel):
+    account_id: int
+    institution_name: str
+    account_name: str
+    mask: str | None
+    current_balance: Decimal | None
+    next_payment_amount: Decimal | None
+    next_payment_due_date: date | None
     provider_updated_at: datetime | None
 
 
