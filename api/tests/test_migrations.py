@@ -16,8 +16,10 @@ def test_fresh_sqlite_upgrade(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database}")
     get_settings.cache_clear()
     command.upgrade(Config("alembic.ini"), "head")
-    tables = set(inspect(create_engine(f"sqlite:///{database}")).get_table_names())
-    assert {"connections", "accounts", "transactions", "credit_card_liabilities", "sync_runs", "webhook_events"} <= tables
+    inspector = inspect(create_engine(f"sqlite:///{database}"))
+    tables = set(inspector.get_table_names())
+    assert {"connections", "accounts", "transactions", "account_balance_snapshots", "credit_card_liabilities", "sync_runs", "webhook_events"} <= tables
+    assert "ix_account_snapshots_observed_on" in {index["name"] for index in inspector.get_indexes("account_balance_snapshots")}
     get_settings.cache_clear()
 
 

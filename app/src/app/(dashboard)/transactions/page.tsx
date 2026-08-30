@@ -1,16 +1,7 @@
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { buttonVariants } from "@/components/ui/button";
+import { TransactionFilters } from "@/components/transactions/transaction-filters";
 import {
   Table,
   TableBody,
@@ -39,6 +30,7 @@ export default async function Transactions({
     "status",
     "search",
     "cursor",
+    "limit",
   ])
     if (params[key]) query.set(key, params[key]!);
   const [page, accounts] = await Promise.all([
@@ -48,11 +40,21 @@ export default async function Transactions({
   const selectedAccount = accounts.find(
     (account) => account.id === Number(params.account_id),
   );
+  const history = params.history?.split(",").filter(Boolean) ?? [];
+  const currentCursor = params.cursor;
   const next = new URLSearchParams(query);
-  if (page.next_cursor) next.set("cursor", page.next_cursor);
-  const filtered = ["account_id", "start", "end", "status", "search"].some(
-    (key) => Boolean(params[key]),
-  );
+  if (page.next_cursor) {
+    next.set("cursor", page.next_cursor);
+    const nextHistory = [...history, currentCursor].filter(Boolean);
+    if (nextHistory.length) next.set("history", nextHistory.join(","));
+  }
+  const previous = new URLSearchParams(query);
+  previous.delete("cursor");
+  if (history.length) {
+    previous.set("cursor", history.at(-1)!);
+    if (history.length > 1)
+      previous.set("history", history.slice(0, -1).join(","));
+  }
   return (
     <div className="space-y-8 animate-rise">
       <div className="flex flex-col justify-between gap-5 border-b pb-6 sm:flex-row sm:items-end">
@@ -88,91 +90,7 @@ export default async function Transactions({
           )}
         </div>
       </div>
-      <form
-        method="get"
-        action="/transactions"
-        className="grid gap-4 border-b pb-5 md:grid-cols-[minmax(180px,1fr)_190px_145px_145px_140px_auto] md:items-end"
-      >
-        <div>
-          <Label htmlFor="search">Search</Label>
-          <div className="relative mt-2">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              id="search"
-              name="search"
-              defaultValue={params.search}
-              className="pl-9"
-              placeholder="Merchant or description"
-            />
-          </div>
-        </div>
-        <div>
-          <Label htmlFor="account_id">Account</Label>
-          <Select
-            id="account_id"
-            name="account_id"
-            defaultValue={params.account_id ?? null}
-          >
-            <SelectTrigger className="mt-2 w-full">
-              <SelectValue placeholder="All accounts" />
-            </SelectTrigger>
-            <SelectContent>
-              {accounts.map((account) => (
-                <SelectItem key={account.id} value={String(account.id)}>
-                  {account.institution_name} · {account.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="start">From</Label>
-          <Input
-            id="start"
-            name="start"
-            type="date"
-            defaultValue={params.start}
-            className="mt-2"
-          />
-        </div>
-        <div>
-          <Label htmlFor="end">To</Label>
-          <Input
-            id="end"
-            name="end"
-            type="date"
-            defaultValue={params.end}
-            className="mt-2"
-          />
-        </div>
-        <div>
-          <Label htmlFor="status">Status</Label>
-          <Select
-            id="status"
-            name="status"
-            defaultValue={params.status ?? null}
-          >
-            <SelectTrigger className="mt-2 w-full">
-              <SelectValue placeholder="All activity" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="posted">Posted</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex gap-2">
-          <Button type="submit">Apply</Button>
-          {filtered && (
-            <Link
-              href="/transactions"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Clear
-            </Link>
-          )}
-        </div>
-      </form>
+      <TransactionFilters accounts={accounts} />
       <div className="overflow-x-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>
@@ -251,14 +169,26 @@ export default async function Transactions({
           </TableBody>
         </Table>
       </div>
-      {page.next_cursor && (
-        <div className="flex justify-end">
-          <Link
-            className={buttonVariants({ variant: "outline" })}
-            href={`/transactions?${next}`}
-          >
-            Next page
-          </Link>
+      {(currentCursor || page.next_cursor) && (
+        <div className="flex justify-between gap-3">
+          {currentCursor ? (
+            <Link
+              className={buttonVariants({ variant: "outline" })}
+              href={`/transactions?${previous}`}
+            >
+              Previous page
+            </Link>
+          ) : (
+            <span />
+          )}
+          {page.next_cursor && (
+            <Link
+              className={buttonVariants({ variant: "outline" })}
+              href={`/transactions?${next}`}
+            >
+              Next page
+            </Link>
+          )}
         </div>
       )}
     </div>

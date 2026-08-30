@@ -10,6 +10,7 @@ from fintrack.db.base import get_db
 from fintrack.db.meta import Base
 from fintrack.db.models import Account, Connection, Transaction
 from fintrack.main import app
+from fintrack.routers.api import fuzzy_transaction_match
 
 
 def test_auth_csrf_and_cursor_pagination(tmp_path):
@@ -54,7 +55,18 @@ def test_auth_csrf_and_cursor_pagination(tmp_path):
         second = client.get(f"/api/v1/transactions?limit=2&cursor={first['next_cursor']}").json()
         assert [row["id"] for row in first["items"]] == [3, 2]
         assert [row["id"] for row in second["items"]] == [1]
+        assert first["total"] == 3
         assert "authorized_date" in first["items"][0]
         assert len(client.get("/api/v1/accounts").json()) == 1
         assert client.get("/api/v1/summary").json()["net_position"] == "100.0000"
+        analytics = client.get("/api/v1/analytics?range=1w")
+        assert analytics.status_code == 200 and analytics.json()["range"] == "1w"
+        custom_analytics = client.get("/api/v1/analytics?start=2026-08-28&end=2026-08-29")
+        assert custom_analytics.status_code == 200 and custom_analytics.json()["range"] == "custom"
+        assert client.get("/api/v1/analytics?range=custom").status_code == 422
     app.dependency_overrides.clear()
+
+
+def test_fuzzy_transaction_search():
+    assert fuzzy_transaction_match("unitedd", "United Airlines", None)
+    assert not fuzzy_transaction_match("unitedd", "Coffee Shop", None)

@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
 CONFIG_PATH = Path(__file__).parents[2] / "config.toml"
@@ -13,9 +14,19 @@ class AppConfig(BaseModel):
     frontend_url: HttpUrl = HttpUrl("http://localhost:3000")
     log_level: str = "INFO"
     session_hours: int = Field(12, ge=1, le=168)
+    timezone: str = "America/New_York"
     trusted_hosts: list[str] = ["localhost", "127.0.0.1", "testserver"]
     webhook_url: str = ""
     max_webhook_bytes: int = Field(65_536, ge=1_024, le=1_048_576)
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("timezone must be an IANA timezone") from exc
+        return value
 
 
 class DatabaseConfig(BaseModel):
@@ -51,6 +62,9 @@ class Settings(BaseSettings):
     plaid_token_master_key: str = ""
     session_signing_key: str = ""
     owner_password_hash: str = ""
+    mcp_enable: bool = False
+    docs_enable: bool = False
+    mcp_auth_token: str = ""
 
     @classmethod
     def settings_customise_sources(cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings) -> tuple[PydanticBaseSettingsSource, ...]:
@@ -62,6 +76,8 @@ class Settings(BaseSettings):
             missing = [name for name in ("plaid_client_id", "plaid_secret", "plaid_token_master_key", "session_signing_key", "owner_password_hash") if not getattr(self, name)]
             if missing:
                 raise ValueError(f"Missing required secrets: {', '.join(missing)}")
+        if self.mcp_enable and not self.mcp_auth_token:
+            raise ValueError("MCP_AUTH_TOKEN is required when MCP_ENABLE is true")
         return self
 
 

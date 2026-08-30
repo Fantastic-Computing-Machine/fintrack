@@ -73,6 +73,21 @@ class Transaction(Base):
         CheckConstraint("length(currency) = 3", name="ck_transactions_currency"),
         Index("ix_transactions_account_date_id", "account_id", date.desc(), id.desc()),
         Index("ix_transactions_date_id", date.desc(), id.desc()),
+        Index("ix_transactions_pending_provider_id", "pending_provider_id"),
+    )
+
+
+class AccountBalanceSnapshot(Base):
+    __tablename__ = "account_balance_snapshots"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
+    observed_on: Mapped[date] = mapped_column(Date)
+    account_type: Mapped[str] = mapped_column(String(20))
+    current_balance: Mapped[Decimal] = mapped_column(Numeric(19, 4))
+    __table_args__ = (
+        UniqueConstraint("account_id", "observed_on", name="uq_account_snapshots_account_day"),
+        CheckConstraint("account_type IN ('credit','loan')", name="ck_account_snapshots_type"),
+        Index("ix_account_snapshots_observed_on", "observed_on", "account_type"),
     )
 
 

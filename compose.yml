@@ -17,15 +17,6 @@ services:
     ports: ["8000:8000"]
     depends_on: { postgres: { condition: service_healthy } }
     healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"], interval: 5s, timeout: 5s, retries: 20 }
-  worker:
-    build: ./api
-    command: ["uv", "run", "python", "-m", "fintrack.worker"]
-    env_file:
-      - path: ./api/.env
-        format: raw
-    environment:
-      DATABASE_URL: postgresql+psycopg://fintrack:${POSTGRES_PASSWORD}@postgres:5432/fintrack
-    depends_on: { api: { condition: service_healthy } }
   app:
     build:
       context: ./app

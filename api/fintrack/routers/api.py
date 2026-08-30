@@ -1,11 +1,13 @@
 import base64
+from difflib import SequenceMatcher
 import json
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, ValidationError
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, false, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,9 +16,10 @@ from ..core.security import COOKIE_NAME, CSRF_COOKIE_NAME, create_session, requi
 from ..db.base import get_db
 from ..db.models import Account, Connection, CreditCardLiability, SyncRun, Transaction, WebhookEvent
 from ..integrations.plaid import PlaidClient, PlaidError
+from ..services.analytics import build_analytics
 from ..services.sync import enqueue_sync, utcnow
 from ..services.webhooks import WebhookKeyUnavailable, WebhookVerificationError, WebhookVerifier
-from .schemas import AccountOut, CardOut, ConnectionOut, LinkTokenRequest, LoginRequest, PublicTokenRequest, SummaryOut, SyncAccepted, SyncRequest, SyncRunOut, TransactionOut, TransactionPage
+from .schemas import AccountOut, AnalyticsOut, AnalyticsRange, CardOut, ConnectionOut, LinkTokenRequest, LoginRequest, PublicTokenRequest, SummaryOut, SyncAccepted, SyncRequest, SyncRunOut, TransactionOut, TransactionPage
 
 router = APIRouter(prefix="/api/v1")
 protected = APIRouter(dependencies=[Depends(require_owner)])
@@ -29,6 +32,16 @@ class PlaidWebhook(BaseModel):
     webhook_code: str
     item_id: str | None = None
     error: dict | None = None
+
+
+def fuzzy_transaction_match(needle: str, *values: str | None) -> bool:
+    for value in values:
+        text = (value or "").lower()
+        if SequenceMatcher(None, needle, text).ratio() >= 0.55:
+            return True
+        if any(SequenceMatcher(None, needle, word).ratio() >= 0.72 for word in text.split()):
+            return True
+    return False
 
 
 @router.post("/auth/login", status_code=204, dependencies=[Depends(validate_origin)])
@@ -96,6 +109,18 @@ async def summary(db: AsyncSession = Depends(get_db), settings: Settings = Depen
     return SummaryOut(cash=cash, credit_card_debt=debt, net_position=cash - debt, last_success_at=max((c.last_success_at for c in connections if c.last_success_at), default=None), stale_count=stale, error_count=sum(c.status in {"error", "reconnect_required"} for c in connections))
 
 
+@protected.get("/analytics", response_model=AnalyticsOut)
+async def analytics(range: AnalyticsRange = Query("1m"), start: date | None = None, end: date | None = None, db: AsyncSession = Depends(get_db), settings: Settings = Depends(get_settings)):
+    today = datetime.now(ZoneInfo(settings.app.timezone)).date()
+    if range == "custom" and not start:
+        raise HTTPException(422, "Custom analytics requires both start and end dates")
+    if bool(start) != bool(end):
+        raise HTTPException(422, "Custom analytics requires both start and end dates")
+    if start and end and (start > end or end > today):
+        raise HTTPException(422, "Invalid custom analytics date range")
+    return await build_analytics(db, "custom" if start else range, settings.app.timezone, start, end)
+
+
 def encode_cursor(day: date, row_id: int) -> str:
     return base64.urlsafe_b64encode(f"{day.isoformat()}|{row_id}".encode()).decode().rstrip("=")
 
@@ -110,24 +135,34 @@ def decode_cursor(value: str) -> tuple[date, int]:
 
 
 @protected.get("/transactions", response_model=TransactionPage)
-async def transactions(account_id: int | None = None, institution: str | None = None, start: date | None = None, end: date | None = None, status_filter: str | None = Query(None, alias="status"), search: str | None = None, cursor: str | None = None, limit: int = Query(50, ge=1, le=200), db: AsyncSession = Depends(get_db)):
-    query = select(Transaction, Account, Connection).join(Account, Transaction.account_id == Account.id).join(Connection, Account.connection_id == Connection.id).where(~Transaction.removed)
-    if account_id: query = query.where(Transaction.account_id == account_id)
-    if institution: query = query.where(Connection.institution_id == institution)
-    if start: query = query.where(Transaction.date >= start)
-    if end: query = query.where(Transaction.date <= end)
-    if status_filter == "pending": query = query.where(Transaction.pending)
-    elif status_filter == "posted": query = query.where(~Transaction.pending)
+async def transactions(account_id: int | None = None, institution: str | None = None, start: date | None = None, end: date | None = None, status_filter: str | None = Query(None, alias="status"), search: str | None = None, cursor: str | None = None, limit: int = Query(100, ge=1, le=500), db: AsyncSession = Depends(get_db)):
+    filters = [~Transaction.removed]
+    if account_id: filters.append(Transaction.account_id == account_id)
+    if institution: filters.append(Connection.institution_id == institution)
+    if start: filters.append(Transaction.date >= start)
+    if end: filters.append(Transaction.date <= end)
+    if status_filter == "pending": filters.append(Transaction.pending)
+    elif status_filter == "posted": filters.append(~Transaction.pending)
     if search:
-        needle = f"%{search.lower()}%"
-        query = query.where(or_(func.lower(Transaction.description).like(needle), func.lower(func.coalesce(Transaction.merchant_name, "")).like(needle)))
+        needle = search.lower().strip()
+        exact_filter = or_(func.lower(Transaction.description).like(f"%{needle}%"), func.lower(func.coalesce(Transaction.merchant_name, "")).like(f"%{needle}%"))
+        exact_total = await db.scalar(select(func.count()).select_from(Transaction).join(Account, Transaction.account_id == Account.id).join(Connection, Account.connection_id == Connection.id).where(*filters, exact_filter)) or 0
+        if exact_total or len(needle) < 3:
+            filters.append(exact_filter)
+        else:
+            # ponytail: personal-dashboard cap; add database FTS only if 5,000 candidates is insufficient.
+            candidates = (await db.execute(select(Transaction.id, Transaction.description, Transaction.merchant_name).where(*filters).limit(5000))).all()
+            ids = [transaction_id for transaction_id, description, merchant in candidates if fuzzy_transaction_match(needle, description, merchant)]
+            filters.append(Transaction.id.in_(ids) if ids else false())
+    query = select(Transaction, Account, Connection).join(Account, Transaction.account_id == Account.id).join(Connection, Account.connection_id == Connection.id).where(*filters)
+    total = await db.scalar(select(func.count()).select_from(Transaction).join(Account, Transaction.account_id == Account.id).join(Connection, Account.connection_id == Connection.id).where(*filters)) or 0
     if cursor:
         cursor_date, cursor_id = decode_cursor(cursor)
         query = query.where(or_(Transaction.date < cursor_date, and_(Transaction.date == cursor_date, Transaction.id < cursor_id)))
     rows = (await db.execute(query.order_by(Transaction.date.desc(), Transaction.id.desc()).limit(limit + 1))).all()
     page = rows[:limit]
     items = [TransactionOut(id=t.id, account_id=a.id, account_name=a.name, institution_name=c.institution_name, date=t.date, authorized_date=t.authorized_date, amount=t.amount, currency=t.currency, merchant_name=t.merchant_name, description=t.description, category=t.category, pending=t.pending) for t, a, c in page]
-    return TransactionPage(items=items, next_cursor=encode_cursor(page[-1][0].date, page[-1][0].id) if len(rows) > limit else None)
+    return TransactionPage(items=items, next_cursor=encode_cursor(page[-1][0].date, page[-1][0].id) if len(rows) > limit else None, total=total)
 
 
 @protected.get("/cards", response_model=list[CardOut])

@@ -1,6 +1,6 @@
 # Fin Track
 
-Private, read-only Plaid dashboard. The Next.js UI talks only to FastAPI; a separate worker consumes the database queue. SQLite is the local default and PostgreSQL is the deployment target.
+Private, read-only Plaid dashboard. The Next.js UI talks only to FastAPI; FastAPI starts the lightweight database-queue worker with the API process. SQLite is the local default and PostgreSQL is the deployment target.
 
 ## Start locally
 
@@ -14,19 +14,15 @@ uv run python -c "import base64,secrets; print(base64.b64encode(secrets.token_by
 uv run python -c "from pwdlib import PasswordHash; print(PasswordHash.recommended().hash('your-password'))"
 ```
 
-Put those values in `.env` as `PLAID_TOKEN_MASTER_KEY` and `OWNER_PASSWORD_HASH`. Set a long random `SESSION_SIGNING_KEY` and Plaid credentials. Then use three terminals:
+Put those values in `.env` as `PLAID_TOKEN_MASTER_KEY` and `OWNER_PASSWORD_HASH`. Set a long random `SESSION_SIGNING_KEY` and Plaid credentials. Then use two terminals:
 
 ```powershell
 # terminal 1
 cd api
 uv run alembic upgrade head
-uv run uvicorn fintrack.main:app --reload
+uv run python -m fintrack.main
 
 # terminal 2
-cd api
-uv run python -m fintrack.worker
-
-# terminal 3
 cd app
 Copy-Item .env.example .env.local
 npm install
@@ -34,6 +30,10 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). For containers, fill `api/.env`, set `POSTGRES_PASSWORD`, then run `docker compose up --build`.
+
+## Read-only MCP
+
+Set `MCP_ENABLE=true` and a long random `MCP_AUTH_TOKEN` in `api/.env` to expose the authenticated Streamable HTTP endpoint at `http://localhost:8000/mcp`. Configure your MCP client with `Authorization: Bearer <MCP_AUTH_TOKEN>`. Set `DOCS_ENABLE=true` to expose `/docs`, `/redoc`, and `/openapi.json`; both features default off. See [MCP.md](MCP.md) for client configuration and the complete read-only tool reference.
 
 ## Webhooks and checks
 

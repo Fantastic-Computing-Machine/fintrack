@@ -3,16 +3,17 @@ from __future__ import annotations
 import random
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import Settings, get_settings
 from ..db.base import SessionLocal
-from ..db.models import Account, Connection, CreditCardLiability, SyncRun, Transaction, WebhookEvent
+from ..db.models import Account, AccountBalanceSnapshot, Connection, CreditCardLiability, SyncRun, Transaction, WebhookEvent
 from ..integrations.plaid import PlaidClient, PlaidError
 
 
@@ -31,6 +32,8 @@ def as_datetime(value: str | datetime | None) -> datetime | None:
 def clean_error(exc: Exception) -> str:
     if isinstance(exc, PlaidError):
         return f"Plaid {exc.endpoint or 'request'}: {exc.code}"[:500]
+    if isinstance(exc, OperationalError):
+        return "Database operation failed"
     if isinstance(exc, TypeError):
         return f"TypeError: {exc}"[:500]
     return f"{type(exc).__name__}: provider operation failed"[:500]
@@ -85,8 +88,10 @@ async def _apply_sync(
     balances: list[dict[str, Any]],
     liabilities: list[dict[str, Any]],
     pages: list[dict[str, Any]],
+    timezone_name: str,
 ) -> None:
     now = utcnow()
+    observed_on = now.astimezone(ZoneInfo(timezone_name)).date()
     async with db.begin():
         connection = await db.scalar(select(Connection).where(Connection.id == connection_id).with_for_update())
         run = await db.get(SyncRun, run_id)
@@ -116,7 +121,14 @@ async def _apply_sync(
 
         accounts = (await db.execute(select(Account.provider_account_id, Account.id).where(Account.connection_id == connection_id))).all()
         account_ids = dict(accounts)
+        debt_accounts = (await db.execute(select(Account.id, Account.type, Account.current_balance).where(Account.connection_id == connection_id, Account.active, Account.type.in_(("credit", "loan")), Account.current_balance.is_not(None)))).all()
+        for account_id, account_type, current_balance in debt_accounts:
+            values = {"account_id": account_id, "observed_on": observed_on, "account_type": account_type, "current_balance": current_balance}
+            statement = _insert(db, AccountBalanceSnapshot).values(**values)
+            statement = statement.on_conflict_do_update(constraint="uq_account_snapshots_account_day", set_={"account_type": account_type, "current_balance": current_balance}) if db.bind and db.bind.dialect.name == "postgresql" else statement.on_conflict_do_update(index_elements=["account_id", "observed_on"], set_={"account_type": account_type, "current_balance": current_balance})
+            await db.execute(statement)
         added = modified = removed = 0
+        pending_replacements: list[tuple[int, str]] = []
         for page in pages:
             added += len(page.get("added", []))
             modified += len(page.get("modified", []))
@@ -148,6 +160,16 @@ async def _apply_sync(
                 updates = {key: value for key, value in values.items() if key != "provider_transaction_id"}
                 statement = statement.on_conflict_do_update(constraint="uq_transactions_provider_id", set_=updates) if db.bind and db.bind.dialect.name == "postgresql" else statement.on_conflict_do_update(index_elements=["provider_transaction_id"], set_=updates)
                 await db.execute(statement)
+                if not values["pending"] and values["pending_provider_id"] and values["pending_provider_id"] != values["provider_transaction_id"]:
+                    pending_replacements.append((account_id, values["pending_provider_id"]))
+
+        for account_id, pending_id in pending_replacements:
+            await db.execute(update(Transaction).where(
+                Transaction.account_id == account_id,
+                Transaction.provider_transaction_id == pending_id,
+                Transaction.pending,
+                ~Transaction.removed,
+            ).values(removed=True, provider_updated_at=now))
 
         for raw in liabilities:
             account_id = account_ids.get(raw["account_id"])
@@ -205,26 +227,31 @@ async def sync_connection(connection_id: int, run_id: int, settings: Settings | 
             else:
                 raise
         async with SessionLocal() as db:
-            await _apply_sync(db, connection_id, run_id, starting_cursor, final_cursor, balance_data.get("accounts") or [], liabilities, pages)
+            await _apply_sync(db, connection_id, run_id, starting_cursor, final_cursor, balance_data.get("accounts") or [], liabilities, pages, settings.app.timezone)
     except Exception as exc:
         async with SessionLocal() as db:
             run = await db.get(SyncRun, run_id)
             if not run:
                 return
             now = utcnow()
-            if isinstance(exc, PlaidError) and exc.code == "RATE_LIMIT_EXCEEDED" and run.attempt_count < settings.sync.max_attempts:
-                delay = exc.retry_after or min(3600, 30 * 2 ** max(0, run.attempt_count - 1)) + random.uniform(0, 10)
+            retry_database = isinstance(exc, OperationalError)
+            retry_rate_limit = isinstance(exc, PlaidError) and exc.code == "RATE_LIMIT_EXCEEDED"
+            if (retry_database or retry_rate_limit) and run.attempt_count < settings.sync.max_attempts:
+                delay = (exc.retry_after if retry_rate_limit else None) or min(3600, 5 * 2 ** max(0, run.attempt_count - 1)) + random.uniform(0, 3)
                 run.status = "retry_wait"
                 run.available_at = now + timedelta(seconds=delay)
             else:
                 run.status = "failed"
                 run.finished_at = now
             run.error = clean_error(exc)
-            await db.execute(update(Connection).where(Connection.id == connection_id).values(
-                last_attempt_at=now,
-                last_error=run.error,
-                status="reconnect_required" if isinstance(exc, PlaidError) and exc.code in {"ITEM_LOGIN_REQUIRED", "INVALID_ACCESS_TOKEN"} else "error",
-            ))
+            if retry_database:
+                await db.execute(update(Connection).where(Connection.id == connection_id).values(last_attempt_at=now))
+            else:
+                await db.execute(update(Connection).where(Connection.id == connection_id).values(
+                    last_attempt_at=now,
+                    last_error=run.error,
+                    status="reconnect_required" if isinstance(exc, PlaidError) and exc.code in {"ITEM_LOGIN_REQUIRED", "INVALID_ACCESS_TOKEN"} else "error",
+                ))
             await db.commit()
 
 

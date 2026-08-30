@@ -82,6 +82,55 @@ class TransactionOut(BaseModel):
 class TransactionPage(BaseModel):
     items: list[TransactionOut]
     next_cursor: str | None
+    total: int
+
+
+AnalyticsRange = Literal["1w", "1m", "3m", "6m", "1y", "all", "custom"]
+
+
+class CashFlowPoint(BaseModel):
+    date: date
+    spending: Decimal
+    inflows: Decimal
+    movements: Decimal
+
+
+class SpendingCategoryOut(BaseModel):
+    category: str
+    amount: Decimal
+    share: Decimal
+
+
+class DebtPoint(BaseModel):
+    date: date
+    credit_card_debt: Decimal
+    loan_debt: Decimal
+
+
+class DebtAccountOut(BaseModel):
+    account_id: int
+    institution_name: str
+    account_name: str
+    account_type: Literal["credit", "loan"]
+    current_balance: Decimal
+
+
+class AnalyticsOut(BaseModel):
+    range: AnalyticsRange
+    from_date: date
+    to_date: date
+    timezone: str
+    first_debt_snapshot: date | None
+    debt_history_available: bool
+    spending_total: Decimal
+    inflows_total: Decimal
+    movements_total: Decimal
+    credit_card_debt: Decimal
+    loan_debt: Decimal
+    cash_flow: list[CashFlowPoint]
+    spending_categories: list[SpendingCategoryOut]
+    debt_history: list[DebtPoint]
+    debt_accounts: list[DebtAccountOut]
 
 
 class CardOut(BaseModel):

@@ -1,60 +1,80 @@
+import hmac
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import Response
 from sqlalchemy import text
 
 from .core.config import get_settings
 from .core.logging import configure_logging
 from .db.base import engine
 from .integrations.plaid import PlaidClient
+from .mcp_server import create_mcp_server
 from .routers.api import router
 from .worker import start_worker, stop_worker
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    scheduler = await start_worker(settings) if settings.app.environment != "test" else None
-    try:
-        yield
-    finally:
-        if scheduler:
-            stop_worker(scheduler)
-        await PlaidClient.close()
-        await engine.dispose()
+def create_app(app_settings=None) -> FastAPI:
+    active_settings = app_settings or get_settings()
+    configure_logging(active_settings.app.log_level)
+    production = active_settings.app.environment == "production"
+    mcp_server = create_mcp_server() if active_settings.mcp_enable else None
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        scheduler = await start_worker(active_settings) if active_settings.app.environment != "test" else None
+        try:
+            if mcp_server:
+                async with mcp_server.session_manager.run():
+                    yield
+            else:
+                yield
+        finally:
+            if scheduler:
+                stop_worker(scheduler)
+            await PlaidClient.close()
+            await engine.dispose()
+
+    app = FastAPI(title="Fin Track API", version="0.2.0", lifespan=lifespan, docs_url="/docs" if active_settings.docs_enable else None, redoc_url="/redoc" if active_settings.docs_enable else None, openapi_url="/openapi.json" if active_settings.docs_enable else None)
+    app.dependency_overrides[get_settings] = lambda: active_settings
+    if production:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=active_settings.app.trusted_hosts)
+    app.add_middleware(CORSMiddleware, allow_origins=[str(active_settings.app.frontend_url).rstrip("/")], allow_credentials=True, allow_methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "X-CSRF-Token"])
+    app.include_router(router)
+
+    if mcp_server:
+        mcp_app = mcp_server.streamable_http_app(streamable_http_path="/mcp", stateless_http=True, host=active_settings.app.api_url.host)
+
+        @app.middleware("http")
+        async def require_mcp_token(request, call_next):
+            if request.url.path == "/mcp":
+                token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+                if not hmac.compare_digest(token, active_settings.mcp_auth_token):
+                    return Response(status_code=401, headers={"WWW-Authenticate": "Bearer"})
+            return await call_next(request)
+
+    @app.get("/health/live")
+    async def live():
+        return {"status": "ok"}
+
+    @app.get("/health/ready")
+    async def ready():
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+        return {"status": "ok"}
+
+    if mcp_server:
+        app.mount("/", mcp_app)
+
+    return app
 
 
-settings = get_settings()
-configure_logging(settings.app.log_level)
-production = settings.app.environment == "production"
-app = FastAPI(
-    title="Fin Track API",
-    version="0.2.0",
-    lifespan=lifespan,
-    docs_url=None if production else "/docs",
-    redoc_url=None if production else "/redoc",
-    openapi_url=None if production else "/openapi.json",
-)
-if production:
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.app.trusted_hosts)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[str(settings.app.frontend_url).rstrip("/")],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-CSRF-Token"],
-)
-app.include_router(router)
+app = create_app()
 
 
-@app.get("/health/live")
-async def live():
-    return {"status": "ok"}
+if __name__ == "__main__":
+    import uvicorn
 
-
-@app.get("/health/ready")
-async def ready():
-    async with engine.connect() as connection:
-        await connection.execute(text("SELECT 1"))
-    return {"status": "ok"}
+    uvicorn.run("fintrack.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -4,6 +4,7 @@ api_url = "http://localhost:8000"
 frontend_url = "http://localhost:3000"
 log_level = "INFO"
 session_hours = 12
+timezone = "America/New_York"
 trusted_hosts = ["localhost", "127.0.0.1"]
 webhook_url = ""
 max_webhook_bytes = 65536
