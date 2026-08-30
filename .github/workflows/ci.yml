@@ -28,6 +28,7 @@ jobs:
           APP__ENVIRONMENT: test
           SESSION_SIGNING_KEY: test-signing-key-at-least-32-bytes
           OWNER_PASSWORD_HASH: unused
+          PLAID_TOKEN_MASTER_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
           TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/fintrack_test
         run: uv run pytest -q
       - name: Frontend checks
