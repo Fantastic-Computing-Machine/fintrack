@@ -23,7 +23,11 @@ def test_mcp_settings_and_feature_gates():
             app = create_app(settings)
             with TestClient(app, base_url="http://localhost:8000") as client:
                 assert client.get("/docs").status_code == (200 if docs_enabled else 404)
+                reference = client.get("/mcp/docs")
+                assert reference.status_code == (200 if docs_enabled else 404)
                 if docs_enabled:
+                    assert "Fin Track MCP" in reference.text
+                    assert "get_transaction_statement" in reference.text
                     schema = client.get("/openapi.json").json()
                     assert schema["info"]["summary"] == "Private Plaid-backed finance dashboard"
                     assert schema["paths"]["/api/v1/transactions"]["get"]["summary"] == "Search and paginate transactions"
@@ -60,7 +64,9 @@ def test_read_only_mcp_tools(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_server, "SessionLocal", session)
 
     async def check():
-        assert [tool.name for tool in await mcp_server.create_mcp_server().list_tools()] == ["get_financial_summary", "list_accounts", "list_credit_cards", "list_transactions", "get_transaction_statement"]
+        tools = await mcp_server.create_mcp_server().list_tools()
+        assert [tool.name for tool in tools] == ["get_financial_summary", "list_accounts", "list_credit_cards", "list_transactions", "get_transaction_statement"]
+        assert all(tool.annotations.read_only_hint and not tool.annotations.destructive_hint and not tool.annotations.open_world_hint for tool in tools)
         assert (await mcp_server.get_financial_summary())["net_position"] == "75.0000"
         assert len(await mcp_server.list_accounts()) == 2
         cards = await mcp_server.list_credit_cards()

@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from sqlalchemy import and_, func, or_, select
 
 from .core.config import get_settings
@@ -11,6 +12,54 @@ from .db.base import SessionLocal
 from .db.models import Account, Connection, CreditCardLiability, Transaction
 
 MAX_TRANSACTIONS = 200
+
+MCP_TOOL_DOCS = (
+    {
+        "name": "get_financial_summary",
+        "title": "Get financial summary",
+        "description": "Cash, credit-card debt, net position, and connection freshness.",
+        "parameters": (),
+        "returns": "Decimal-string USD totals, last successful sync time, stale count, and error count.",
+    },
+    {
+        "name": "list_accounts",
+        "title": "List accounts",
+        "description": "Active accounts and their current balances.",
+        "parameters": (("account_type", "string", "Optional", "Filter by account type, for example `depository` or `credit`."),),
+        "returns": "Account names, masks, institutions, balances, currency, and freshness metadata.",
+    },
+    {
+        "name": "list_credit_cards",
+        "title": "List credit cards",
+        "description": "Active credit cards with statement and payment details.",
+        "parameters": (),
+        "returns": "Balances, limits, statement dates, minimum payments, due dates, APRs, and overdue status.",
+    },
+    {
+        "name": "list_transactions",
+        "title": "List transactions",
+        "description": "Newest matching transactions, with a safe result limit.",
+        "parameters": (
+            ("account_id", "integer", "Optional", "Limit results to one account."),
+            ("start_date", "YYYY-MM-DD", "Optional", "Include transactions on or after this date."),
+            ("end_date", "YYYY-MM-DD", "Optional", "Include transactions on or before this date."),
+            ("search", "string", "Optional", "Case-insensitive merchant-name or description search."),
+            ("limit", "integer", "Optional; default 50; maximum 200", "Maximum transactions to return."),
+        ),
+        "returns": "Transactions ordered newest first and `truncated` when more matches exist.",
+    },
+    {
+        "name": "get_transaction_statement",
+        "title": "Get transaction statement",
+        "description": "One account's stored transactions over a requested date range.",
+        "parameters": (
+            ("account_id", "integer", "Required", "The active account ID."),
+            ("start_date", "YYYY-MM-DD", "Required", "First date in the inclusive range."),
+            ("end_date", "YYYY-MM-DD", "Required", "Last date in the inclusive range."),
+        ),
+        "returns": "Account details, up to 200 transactions, and `truncated`. This is not a bank-issued PDF.",
+    },
+)
 
 
 def value(item):
@@ -148,6 +197,7 @@ async def get_transaction_statement(account_id: int, start_date: date, end_date:
 
 def create_mcp_server() -> MCPServer:
     server = MCPServer("Fin Track", instructions="Read-only personal finance data. Money values are decimal strings.")
-    for tool in (get_financial_summary, list_accounts, list_credit_cards, list_transactions, get_transaction_statement):
-        server.tool()(tool)
+    tools = (get_financial_summary, list_accounts, list_credit_cards, list_transactions, get_transaction_statement)
+    for tool, documentation in zip(tools, MCP_TOOL_DOCS, strict=True):
+        server.tool(annotations=ToolAnnotations(title=documentation["title"], readOnlyHint=True, destructiveHint=False, openWorldHint=False))(tool)
     return server

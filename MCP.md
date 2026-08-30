@@ -23,6 +23,10 @@ uv run python -m fintrack.main
 
 The local endpoint is `http://localhost:8000/mcp`. An agent on another machine needs the API exposed over HTTPS and must use that reachable URL instead. Do not send the bearer token to an untrusted agent or commit it to source control.
 
+## Live reference
+
+Set `DOCS_ENABLE=true` to expose the browser-friendly MCP reference at `http://localhost:8000/mcp/docs`. It is governed by the same flag as Swagger (`/docs`, `/redoc`, and `/openapi.json`) and remains available even when `MCP_ENABLE=false`, so you can review the interface before enabling the server.
+
 ## Connect an MCP client
 
 Create a Streamable HTTP MCP connection with this URL and header:
@@ -56,7 +60,7 @@ Use the configuration format your MCP client requires, but preserve the URL, Str
 
 ## Tools
 
-All money values are decimal strings to preserve precision. The server has no write, sync, token, raw-SQL, or connection-management tools.
+All money values are decimal strings to preserve precision. Every tool declares standard MCP hints: read-only, non-destructive, and closed-world. The server has no write, sync, token, raw-SQL, or connection-management tools.
 
 | Tool | Inputs | Returns |
 | --- | --- | --- |

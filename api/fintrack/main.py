@@ -11,6 +11,7 @@ from .core.config import get_settings
 from .core.logging import configure_logging
 from .db.base import engine
 from .integrations.plaid import PlaidClient
+from .mcp_docs import register_mcp_docs
 from .mcp_server import create_mcp_server
 from .routers.api import router
 from .worker import start_worker, stop_worker
@@ -66,6 +67,9 @@ def create_app(app_settings=None) -> FastAPI:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=active_settings.app.trusted_hosts)
     app.add_middleware(CORSMiddleware, allow_origins=[str(active_settings.app.frontend_url).rstrip("/")], allow_credentials=True, allow_methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "X-CSRF-Token"])
     app.include_router(router)
+
+    if active_settings.docs_enable:
+        register_mcp_docs(app, str(active_settings.app.api_url).rstrip("/"))
 
     if mcp_server:
         mcp_app = mcp_server.streamable_http_app(streamable_http_path="/mcp", stateless_http=True, host=active_settings.app.api_url.host)
