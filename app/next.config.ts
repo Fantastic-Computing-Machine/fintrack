@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async headers() {
     const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
     const scripts = process.env.NODE_ENV === "production" ? "'self' 'unsafe-inline' https://cdn.plaid.com" : "'self' 'unsafe-inline' 'unsafe-eval' https://cdn.plaid.com";

@@ -41,7 +41,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Docker Compose (Raspberry Pi / LAN)
 
-The included `compose.yml` starts the dashboard on port `3000`, FastAPI (including the worker and enabled MCP server) on port `8000`, and its PostgreSQL database. Create the two environment files, then start everything:
+Both Compose options run the same single `fintrack` image, which contains the Next.js UI and FastAPI process. Choose one database arrangement.
+
+### Bundled PostgreSQL
+
+`compose.yml` starts the dashboard, API, and a persistent PostgreSQL service:
 
 ```powershell
 Copy-Item .env.example .env
@@ -51,7 +55,18 @@ Copy-Item api/.env.example api/.env
 docker compose up --build -d
 ```
 
-Set `APP__FRONTEND_URL=http://<pi-LAN-IP-or-hostname>:3000` in `api/.env` when opening the dashboard from another LAN device. View logs with `docker compose logs -f api` and stop it with `docker compose down`.
+### External PostgreSQL
+
+`compose.external-db.yml` starts only the `fintrack` image. Point `DATABASE_URL` in `api/.env` at your managed or self-hosted PostgreSQL instance, then start it:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item api/.env.example api/.env
+# Set DATABASE_URL and API secrets in api/.env. Set NEXT_PUBLIC_API_URL in .env.
+docker compose -f compose.external-db.yml up --build -d
+```
+
+Set `APP__FRONTEND_URL=http://<pi-LAN-IP-or-hostname>:3000` in `api/.env` when opening the dashboard from another LAN device. View logs with `docker compose logs -f fintrack` and stop it with `docker compose down`.
 
 ## Read-only MCP
 

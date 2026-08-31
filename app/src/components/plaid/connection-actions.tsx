@@ -8,13 +8,27 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { mutate } from "@/lib/api";
 
+function PlaidLinkLauncher({ token, connectionId, onFinish }: { token: string; connectionId?: number; onFinish: () => void }) {
+  const router = useRouter();
+  const onSuccess = useCallback<PlaidLinkOnSuccess>(async (publicToken, metadata) => {
+    try {
+      if (connectionId) await mutate("/sync", "POST", { connection_id: connectionId });
+      else if (publicToken) await mutate("/plaid/exchange", "POST", { public_token: publicToken, institution_id: metadata.institution?.institution_id, institution_name: metadata.institution?.name ?? "Institution" });
+      router.refresh();
+    } finally {
+      onFinish();
+    }
+  }, [connectionId, onFinish, router]);
+  const { open, ready } = usePlaidLink({ token, onSuccess, onExit: onFinish });
+  useEffect(() => { if (ready) open(); }, [ready, open]);
+  return null;
+}
+
 export function ConnectButton({ connectionId, label = "Connect institution" }: { connectionId?: number; label?: string } = {}) {
-  const router = useRouter(); const [token, setToken] = useState<string | null>(null); const [busy, setBusy] = useState(false);
-  const onSuccess = useCallback<PlaidLinkOnSuccess>(async (publicToken, metadata) => { setBusy(true); if (connectionId) await mutate("/sync", "POST", { connection_id: connectionId }); else if (publicToken) await mutate("/plaid/exchange", "POST", { public_token: publicToken, institution_id: metadata.institution?.institution_id, institution_name: metadata.institution?.name ?? "Institution" }); setBusy(false); router.refresh(); }, [connectionId, router]);
-  const { open, ready } = usePlaidLink({ token, onSuccess });
+  const [token, setToken] = useState<string | null>(null); const [busy, setBusy] = useState(false);
   async function connect() { setBusy(true); const data = await mutate("/plaid/link-token", "POST", { connection_id: connectionId }); setToken(data.link_token); setBusy(false); }
-  useEffect(() => { if (token && ready) open(); }, [token, ready, open]);
-  return <Button onClick={connect} disabled={busy}><Link2 className="size-4" />{busy ? "Connecting…" : label}</Button>;
+  const finish = useCallback(() => { setToken(null); setBusy(false); }, []);
+  return <><Button onClick={connect} disabled={busy}><Link2 className="size-4" />{busy ? "Connecting…" : label}</Button>{token && <PlaidLinkLauncher token={token} connectionId={connectionId} onFinish={finish} />}</>;
 }
 
 export function RotateTokenButton({ id }: { id: number }) {
