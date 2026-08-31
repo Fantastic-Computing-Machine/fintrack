@@ -1,9 +1,7 @@
-import Link from "next/link";
-import type { ReactNode } from "react";
-import { ArrowDownRight, ArrowRightLeft, ArrowUpRight } from "lucide-react";
 import {
   CashFlowChart,
   DebtTrend,
+  MonthlySpendDebtRadar,
   SpendingBreakdown,
 } from "@/components/insights/analytics-charts";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,6 +23,9 @@ import {
 import { money, shortDate } from "@/lib/api";
 import { api } from "@/lib/api-server";
 import type { Analytics, AnalyticsRange } from "@/lib/types";
+import { ArrowDownRight, ArrowRightLeft, ArrowUpRight } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +52,12 @@ export default async function Insights({
     : ranges.some(([value]) => value === params.range)
       ? (params.range as AnalyticsRange)
       : "1m";
-  const analytics = await api<Analytics>(
-    `/analytics?${custom ? `start=${params.start}&end=${params.end}` : `range=${selected}`}`,
-  );
+  const [analytics, radarAnalytics] = await Promise.all([
+    api<Analytics>(
+      `/analytics?${custom ? `start=${params.start}&end=${params.end}` : `range=${selected}`}`,
+    ),
+    api<Analytics>("/analytics?range=1y"),
+  ]);
   const activeDays = analytics.cash_flow.filter(
     (point) =>
       Number(point.spending) ||
@@ -68,9 +72,6 @@ export default async function Insights({
         <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
-              Insights
-            </p>
           <h1 className="mt-2 font-display text-4xl tracking-[-.045em] sm:text-5xl">
               Money movement
             </h1>
@@ -186,6 +187,11 @@ export default async function Insights({
       </section>
 
       <CashFlowChart points={analytics.cash_flow} />
+      <MonthlySpendDebtRadar
+        cashFlow={radarAnalytics.cash_flow}
+        debtHistory={radarAnalytics.debt_history}
+        endDate={radarAnalytics.to_date}
+      />
       <div className="grid gap-5 lg:grid-cols-2">
         <SpendingBreakdown categories={analytics.spending_categories} />
         <DebtTrend analytics={analytics} />

@@ -1,7 +1,6 @@
-import Link from "next/link";
+import { TransactionFilters } from "@/components/transactions/transaction-filters";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { TransactionFilters } from "@/components/transactions/transaction-filters";
 import {
   Table,
   TableBody,
@@ -13,6 +12,7 @@ import {
 import { money, shortDate } from "@/lib/api";
 import { api } from "@/lib/api-server";
 import type { Account, TransactionPage } from "@/lib/types";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -60,10 +60,7 @@ export default async function Transactions({
       <div className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
         <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
-            Ledger
-          </p>
+          <div>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">
             {selectedAccount ? selectedAccount.name : "Transactions"}
           </h1>
