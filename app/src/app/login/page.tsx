@@ -36,17 +36,17 @@ export default function LoginPage() {
     }
   }
 
-  return <main className="grid min-h-screen lg:grid-cols-[1.15fr_.85fr]">
-    <section className="hidden bg-foreground p-12 text-background lg:flex lg:flex-col lg:justify-between">
-      <div className="flex items-center gap-2 font-semibold"><Landmark className="size-5" /> Fin Track</div>
-      <div className="max-w-xl animate-rise"><p className="mb-5 font-mono text-xs uppercase tracking-[.2em] text-background/55">Private by design</p><h1 className="text-6xl font-medium leading-[1.02] tracking-[-.045em]">Every account.<br />One quiet ledger.</h1><p className="mt-7 max-w-md text-lg leading-8 text-background/65">Balances, card bills, and transactions—kept in infrastructure you control.</p></div>
-      <p className="text-sm text-background/45">Single-owner access</p>
+  return <main className="relative z-10 grid min-h-screen overflow-hidden lg:grid-cols-[1.1fr_.9fr]">
+    <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1.5" />
+    <section className="hidden p-12 lg:flex lg:flex-col lg:justify-between">
+      <div className="flex items-center gap-2 font-semibold"><span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Landmark /></span> Fin Track</div>
+      <div className="max-w-xl animate-rise"><h1 className="font-display text-7xl leading-[.95] tracking-[-.065em]">A clearer view<br />of your money.</h1><p className="mt-7 max-w-md text-lg leading-8 text-muted-foreground">Balances, card bills, and transactions in one private place.</p></div>
+      <p className="text-sm text-muted-foreground">Single-owner access</p>
     </section>
-    <section className="flex items-center justify-center p-6">
-      <form onSubmit={submit} className="w-full max-w-sm animate-rise">
-        <div className="mb-10 lg:hidden"><Landmark className="mb-4 size-7 text-primary" /><h1 className="text-3xl font-semibold">Fin Track</h1></div>
-        <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">Owner access</p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight">Welcome back</h2>
+    <section className="flex items-center justify-center p-6 sm:p-10">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm animate-rise sm:p-8">
+        <div className="mb-10"><span className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground"><Landmark /></span><h1 className="mt-4 text-2xl font-semibold">Fin Track</h1></div>
+        <h2 className="font-display text-4xl tracking-[-.045em]">Welcome back</h2>
         <p className="mt-2 text-muted-foreground">Enter your dashboard password.</p>
         <div className="mt-8 space-y-2"><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" autoComplete="current-password" required autoFocus /></div>
         {error && <Alert variant="destructive" className="mt-4"><AlertDescription>{error}</AlertDescription></Alert>}

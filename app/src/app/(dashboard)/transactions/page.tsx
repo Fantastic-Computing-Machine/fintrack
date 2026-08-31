@@ -57,7 +57,9 @@ export default async function Transactions({
   }
   return (
     <div className="space-y-8 animate-rise">
-      <div className="flex flex-col justify-between gap-5 border-b pb-6 sm:flex-row sm:items-end">
+      <div className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
+        <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
+        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
             Ledger
@@ -89,9 +91,11 @@ export default async function Transactions({
             </>
           )}
         </div>
+        </div>
       </div>
+      <div className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
       <TransactionFilters accounts={accounts} />
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <div className="mt-5 overflow-x-auto rounded-xl border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -168,6 +172,7 @@ export default async function Transactions({
             )}
           </TableBody>
         </Table>
+      </div>
       </div>
       {(currentCursor || page.next_cursor) && (
         <div className="flex justify-between gap-3">

@@ -18,3 +18,4 @@ wheels/
 node_modules/
 .next/
 coverage/
+.playwright-mcp/

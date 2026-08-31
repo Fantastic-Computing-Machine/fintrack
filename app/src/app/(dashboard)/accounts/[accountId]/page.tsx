@@ -42,7 +42,8 @@ export default async function AccountTransactions({
 
   return (
     <div className="space-y-8 animate-rise">
-      <div className="space-y-5">
+      <div className="relative space-y-5 overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
+        <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
         <Link
           href="/"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -55,7 +56,7 @@ export default async function AccountTransactions({
             <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
               {account.institution_name}
             </p>
-          <h1 className="mt-2 break-words text-3xl font-semibold tracking-[-.035em] sm:text-4xl">
+          <h1 className="mt-2 break-words font-display text-4xl tracking-[-.045em] sm:text-5xl">
               {account.name}{" "}
               {account.mask && (
                 <span className="text-muted-foreground">··{account.mask}</span>
@@ -78,21 +79,21 @@ export default async function AccountTransactions({
           </Link>
         </div>
       </div>
-      <section className="grid gap-5 border-y py-6 sm:grid-cols-2">
-        <div>
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="text-sm text-muted-foreground">Available balance</p>
           <p className="mt-2 text-2xl font-semibold">
             {money(account.available_balance, account.currency)}
           </p>
         </div>
-        <div>
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="text-sm text-muted-foreground">Current balance</p>
           <p className="mt-2 text-2xl font-semibold">
             {money(account.current_balance, account.currency)}
           </p>
         </div>
       </section>
-      <section>
+      <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex items-end justify-between">
           <div>
             <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
@@ -104,7 +105,7 @@ export default async function AccountTransactions({
           </div>
           <span className="text-sm text-muted-foreground">Newest first</span>
         </div>
-        <div className="overflow-x-auto rounded-lg border bg-card">
+        <div className="overflow-x-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow>

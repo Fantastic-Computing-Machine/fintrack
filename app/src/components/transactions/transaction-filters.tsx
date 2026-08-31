@@ -43,7 +43,7 @@ export function TransactionFilters({ accounts }: { accounts: Account[] }) {
     return () => window.clearTimeout(timer);
   }, [params, search, update]);
   return (
-    <section className="grid gap-4 border-b pb-5 lg:grid-cols-[minmax(180px,1fr)_190px_145px_145px_140px_120px_auto] lg:items-end">
+    <section className="grid gap-4 border-b pb-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(180px,1fr)_190px_145px_145px_140px_120px_auto] 2xl:items-end">
       <div>
         <Label htmlFor="search">Search</Label>
         <div className="relative mt-2">

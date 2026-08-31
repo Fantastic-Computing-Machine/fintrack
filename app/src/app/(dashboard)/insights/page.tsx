@@ -63,14 +63,15 @@ export default async function Insights({
   const largest = analytics.spending_categories[0];
 
   return (
-    <div className="space-y-10 animate-rise">
-      <section>
-        <div className="flex flex-col justify-between gap-6 border-b pb-6 lg:flex-row lg:items-end">
+    <div className="space-y-8 animate-rise">
+      <section className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
+        <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <div>
             <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
               Insights
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">
+          <h1 className="mt-2 font-display text-4xl tracking-[-.045em] sm:text-5xl">
               Money movement
             </h1>
             <p className="mt-2 text-muted-foreground">
@@ -136,7 +137,7 @@ export default async function Insights({
             </DropdownMenu>
           </nav>
         </div>
-        <div className="mt-6 grid gap-6 border-b pb-6 sm:grid-cols-3">
+        <div className="mt-7 grid gap-3 sm:grid-cols-3">
           <Metric
             icon={<ArrowDownRight className="size-4" />}
             label="Spending"
@@ -153,8 +154,8 @@ export default async function Insights({
             value={money(analytics.movements_total)}
           />
         </div>
-        <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
-          <p>
+        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+          <p className="rounded-xl border bg-background p-4">
             <span className="block text-muted-foreground">Net cash flow</span>
             <span className="font-mono font-semibold">
               {money(
@@ -165,13 +166,13 @@ export default async function Insights({
               )}
             </span>
           </p>
-          <p>
+          <p className="rounded-xl border bg-background p-4">
             <span className="block text-muted-foreground">Active days</span>
             <span className="font-mono font-semibold">
               {activeDays} of {analytics.cash_flow.length}
             </span>
           </p>
-          <p>
+          <p className="rounded-xl border bg-background p-4">
             <span className="block text-muted-foreground">
               Largest category
             </span>
@@ -185,12 +186,12 @@ export default async function Insights({
       </section>
 
       <CashFlowChart points={analytics.cash_flow} />
-      <div className="grid gap-12 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <SpendingBreakdown categories={analytics.spending_categories} />
         <DebtTrend analytics={analytics} />
       </div>
 
-      <section>
+      <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex items-end justify-between">
           <div>
             <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
@@ -206,7 +207,7 @@ export default async function Insights({
             {money(analytics.loan_debt)} loans
           </p>
         </div>
-        <div className="overflow-x-auto rounded-lg border bg-card">
+        <div className="overflow-x-auto rounded-xl border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -268,7 +269,7 @@ function Metric({
   value: string;
 }) {
   return (
-    <div>
+    <div className="rounded-xl border bg-background p-4">
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         {icon}
         {label}

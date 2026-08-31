@@ -10,6 +10,7 @@ export function SyncRunFilters() {
   const params = useSearchParams();
   function update(changes: Record<string, string | null>) {
     const next = new URLSearchParams(params.toString());
+    next.delete("page");
     for (const [key, value] of Object.entries(changes)) {
       if (value) next.set(key, value);
       else next.delete(key);

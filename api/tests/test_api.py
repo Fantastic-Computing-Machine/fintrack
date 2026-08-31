@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -52,7 +52,9 @@ def test_auth_csrf_and_cursor_pagination(tmp_path):
                 db.add(Account(connection_id=disconnected.id, provider_account_id="old-account", name="Old checking", type="depository", currency="USD", current_balance=Decimal("500.00")))
                 for index in range(3):
                     db.add(Transaction(account_id=account.id, provider_transaction_id=f"txn-{index}", date=date(2026, 8, 29), amount=Decimal(index), currency="USD", description=f"Transaction {index}", provider_updated_at=datetime.now(timezone.utc)))
-                db.add(SyncRun(connection_id=connection.id, trigger="manual", status="succeeded", started_at=datetime(2026, 8, 29, tzinfo=timezone.utc), finished_at=datetime(2026, 8, 29, tzinfo=timezone.utc), available_at=datetime(2026, 8, 29, tzinfo=timezone.utc)))
+                for index in range(101):
+                    started_at = datetime(2026, 8, 29, tzinfo=timezone.utc) + timedelta(minutes=index)
+                    db.add(SyncRun(connection_id=connection.id, trigger="manual", status="succeeded", started_at=started_at, finished_at=started_at, available_at=started_at))
                 await db.commit()
         asyncio.run(seed())
         first = client.get("/api/v1/transactions?limit=2").json()
@@ -68,7 +70,10 @@ def test_auth_csrf_and_cursor_pagination(tmp_path):
         custom_analytics = client.get("/api/v1/analytics?start=2026-08-28&end=2026-08-29")
         assert custom_analytics.status_code == 200 and custom_analytics.json()["range"] == "custom"
         assert client.get("/api/v1/analytics?range=custom").status_code == 422
-        assert len(client.get("/api/v1/sync-runs?start=2026-08-29&end=2026-08-29").json()) == 1
+        sync_runs = client.get("/api/v1/sync-runs?start=2026-08-29&end=2026-08-29&page=2").json()
+        assert sync_runs["total"] == 101
+        assert len(sync_runs["items"]) == 1
+        assert sync_runs["page"] == 2
     app.dependency_overrides.clear()
 
 

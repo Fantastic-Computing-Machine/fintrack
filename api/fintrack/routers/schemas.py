@@ -190,6 +190,12 @@ class SyncRunOut(BaseModel):
     available_at: datetime
 
 
+class SyncRunPage(BaseModel):
+    items: list[SyncRunOut]
+    page: int
+    total: int
+
+
 class SyncAccepted(BaseModel):
     run_ids: list[int]
     status: Literal["accepted"] = "accepted"

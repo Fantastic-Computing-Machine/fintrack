@@ -44,7 +44,7 @@ export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
   const maximum = maxFlow(points);
   const middle = points[Math.floor(points.length / 2)];
   return (
-    <figure className="border-y py-7">
+    <figure className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
       <figcaption className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
@@ -227,7 +227,7 @@ export function SpendingBreakdown({
       return next;
     });
   return (
-    <section>
+    <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
@@ -336,7 +336,7 @@ export function DebtTrend({ analytics }: { analytics: Analytics }) {
   const cards = linePoints(points, "credit_card_debt", maximum);
   const loans = linePoints(points, "loan_debt", maximum);
   return (
-    <section className="border-y py-7">
+    <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
       <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
         Debt trend
       </p>

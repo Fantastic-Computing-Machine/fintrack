@@ -46,14 +46,13 @@ export default async function Overview() {
     (result[label] ??= []).push(account);
     return result;
   }, {})).sort(([a], [b]) => a.localeCompare(b));
-  return <OverviewPrivacy initialHidden={preference.hide_balances}><div className="space-y-10 animate-rise">
-      <section>
+  return <OverviewPrivacy initialHidden={preference.hide_balances}><div className="space-y-8 animate-rise">
+      <section className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
+        <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
         <div className="flex items-end justify-between gap-8">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
-              Net position
-            </p>
-            <h1 className="mt-3 break-words text-4xl font-medium tracking-[-.045em] sm:text-7xl">
+            <p className="text-sm font-medium text-muted-foreground">Your money, at a glance</p>
+            <h1 className="mt-3 break-words font-display text-5xl tracking-[-.055em] sm:text-7xl">
               <PrivateAmount>{money(summary.net_position)}</PrivateAmount>
             </h1>
           </div>
@@ -69,20 +68,24 @@ export default async function Overview() {
             <PrivacyToggle />
           </div>
         </div>
-        <div className="mt-7 grid gap-6 border-y py-5 sm:grid-cols-2">
-          <div>
+        <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border bg-background p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ArrowUpRight className="size-4 text-primary" /> Cash
+              <ArrowUpRight className="text-income" /> Cash
             </div>
             <p className="mt-2 text-2xl font-semibold"><PrivateAmount>{money(summary.cash)}</PrivateAmount></p>
           </div>
-          <div>
+          <div className="rounded-xl border bg-background p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ArrowDownRight className="size-4" /> Card debt
+              <ArrowDownRight className="text-expense" /> Card debt
             </div>
             <p className="mt-2 text-2xl font-semibold">
               <PrivateAmount>{money(summary.credit_card_debt)}</PrivateAmount>
             </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-sm text-muted-foreground">Connected accounts</p>
+            <p className="mt-2 text-2xl font-semibold">{accounts.length}</p>
           </div>
         </div>
       </section>
@@ -96,7 +99,7 @@ export default async function Overview() {
           </AlertDescription>
         </Alert>
       )}
-      <section>
+      <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
         <div className="mb-4 flex items-end justify-between">
           <div>
             <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
@@ -110,9 +113,9 @@ export default async function Overview() {
             {accounts.length} accounts
           </span>
         </div>
-        {groups.length ? <div className="border-y">
+        {groups.length ? <div className="overflow-hidden rounded-xl border">
           {groups.map(([label, group]) => <details key={label} className="group border-b last:border-b-0">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 outline-none marker:content-none focus-visible:ring-2 focus-visible:ring-ring sm:px-6">
               <div className="min-w-0">
                 <p className="truncate font-semibold capitalize">{label}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{group.length} {group.length === 1 ? "account" : "accounts"} · Current <PrivateAmount>{total(group, "current_balance")}</PrivateAmount></p>
@@ -136,9 +139,9 @@ export default async function Overview() {
               </Table>
               </div>
             </div>
-          </details>)}</div> : <p className="border-y py-12 text-center text-muted-foreground">Connect your first institution in Settings.</p>}
+          </details>)}</div> : <p className="rounded-xl border py-12 text-center text-muted-foreground">Connect your first institution in Settings.</p>}
       </section>
-      <section>
+      <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
         <div className="mb-4">
           <p className="font-mono text-xs uppercase tracking-[.18em] text-muted-foreground">
             Obligations

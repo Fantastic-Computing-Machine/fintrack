@@ -12,4 +12,5 @@ export type DebtAccount = { account_id: number; institution_name: string; accoun
 export type Analytics = { range: AnalyticsRange; from_date: string; to_date: string; timezone: string; first_debt_snapshot: string | null; debt_history_available: boolean; spending_total: string; inflows_total: string; movements_total: string; credit_card_debt: string; loan_debt: string; cash_flow: CashFlowPoint[]; spending_categories: SpendingCategory[]; debt_history: DebtPoint[]; debt_accounts: DebtAccount[] };
 export type Connection = { id: number; institution_id: string | null; institution_name: string; status: string; last_success_at: string | null; last_error: string | null };
 export type SyncRun = { id: number; connection_id: number; trigger: string; status: string; started_at: string; finished_at: string | null; added_count: number; modified_count: number; removed_count: number; error: string | null; attempt_count: number; available_at: string };
+export type SyncRunPage = { items: SyncRun[]; page: number; total: number };
 export type DashboardPreference = { account_grouping: "institution" | "account_type"; hide_balances: boolean };

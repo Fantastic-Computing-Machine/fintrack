@@ -20,7 +20,7 @@ from ..integrations.plaid import PlaidClient, PlaidError
 from ..services.analytics import build_analytics
 from ..services.sync import enqueue_sync, utcnow
 from ..services.webhooks import WebhookKeyUnavailable, WebhookVerificationError, WebhookVerifier
-from .schemas import AccountOut, AnalyticsOut, AnalyticsRange, CardOut, ConnectionOut, DashboardPreferenceOut, DashboardPreferenceUpdate, LinkTokenRequest, LoanOut, LoginRequest, PublicTokenRequest, SummaryOut, SyncAccepted, SyncRequest, SyncRunOut, TransactionOut, TransactionPage
+from .schemas import AccountOut, AnalyticsOut, AnalyticsRange, CardOut, ConnectionOut, DashboardPreferenceOut, DashboardPreferenceUpdate, LinkTokenRequest, LoanOut, LoginRequest, PublicTokenRequest, SummaryOut, SyncAccepted, SyncRequest, SyncRunOut, SyncRunPage, TransactionOut, TransactionPage
 
 router = APIRouter(prefix="/api/v1")
 session_cookie = APIKeyCookie(name=COOKIE_NAME, auto_error=False, description="Session cookie returned by `POST /auth/login`.")
@@ -200,16 +200,18 @@ async def loans(db: AsyncSession = Depends(get_db)):
     return [LoanOut(account_id=a.id, institution_name=c.institution_name, account_name=a.name, mask=a.mask, current_balance=a.current_balance, next_payment_amount=l.next_payment_amount if l else None, next_payment_due_date=l.next_payment_due_date if l else None, provider_updated_at=l.provider_updated_at if l else None) for a, c, l in rows]
 
 
-@protected.get("/sync-runs", response_model=list[SyncRunOut], tags=["Synchronization"], summary="List recent sync runs", description="Returns the newest synchronization runs, including record counts, retry attempts, and errors.")
-async def sync_runs(start: date | None = None, end: date | None = None, limit: int = Query(100, ge=1, le=100), db: AsyncSession = Depends(get_db)):
+@protected.get("/sync-runs", response_model=SyncRunPage, tags=["Synchronization"], summary="List recent sync runs", description="Returns synchronization runs in pages of 100, including record counts, retry attempts, and errors.")
+async def sync_runs(start: date | None = None, end: date | None = None, page: int = Query(1, ge=1), db: AsyncSession = Depends(get_db)):
     if start and end and start > end:
         raise HTTPException(422, "Start date must not be after end date")
-    query = select(SyncRun)
+    filters = []
     if start:
-        query = query.where(SyncRun.started_at >= datetime.combine(start, datetime.min.time(), timezone.utc))
+        filters.append(SyncRun.started_at >= datetime.combine(start, datetime.min.time(), timezone.utc))
     if end:
-        query = query.where(SyncRun.started_at < datetime.combine(end + timedelta(days=1), datetime.min.time(), timezone.utc))
-    return list((await db.scalars(query.order_by(SyncRun.started_at.desc()).limit(limit))).all())
+        filters.append(SyncRun.started_at < datetime.combine(end + timedelta(days=1), datetime.min.time(), timezone.utc))
+    total = await db.scalar(select(func.count()).select_from(SyncRun).where(*filters)) or 0
+    items = list((await db.scalars(select(SyncRun).where(*filters).order_by(SyncRun.started_at.desc(), SyncRun.id.desc()).offset((page - 1) * 100).limit(100))).all())
+    return SyncRunPage(items=items, page=page, total=total)
 
 
 @protected.post("/sync", status_code=202, response_model=SyncAccepted, tags=["Synchronization"], summary="Queue a manual sync", description="Queues all connected institutions, or one connection when `connection_id` is supplied. Existing active syncs are not duplicated.", dependencies=[Depends(require_csrf)])
