@@ -39,9 +39,11 @@ export default function LoginPage() {
   return (
     <main className="relative z-10 flex min-h-screen flex-col overflow-hidden lg:grid lg:grid-cols-[1.1fr_.9fr]">
       <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1.5" />
-      <section className="hidden p-12 lg:flex lg:flex-col lg:justify-between">
+      <section className="hidden p-12 lg:flex lg:flex-col">
         <Brand />
-        <Intro />
+        <div className="flex flex-1 items-center justify-center text-center">
+          <Intro />
+        </div>
       </section>
       <section className="p-6 pb-0 sm:p-10 sm:pb-0 lg:hidden">
         <Brand />

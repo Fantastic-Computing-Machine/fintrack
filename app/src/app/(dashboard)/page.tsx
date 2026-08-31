@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   ChevronRight,
   Clock3,
+  Landmark,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,10 @@ export default async function Overview() {
     (result[label] ??= []).push(account);
     return result;
   }, {})).sort(([a], [b]) => a.localeCompare(b));
+  const loanDebt = loans.reduce(
+    (sum, loan) => sum + (Number(loan.current_balance) || 0),
+    0,
+  );
   return <OverviewPrivacy initialHidden={preference.hide_balances}><div className="space-y-8 animate-rise">
       <section className="relative overflow-hidden rounded-2xl border bg-card p-5 shadow-sm sm:p-7">
         <div aria-hidden className="spectrum-edge absolute inset-x-0 top-0 h-1" />
@@ -84,8 +89,13 @@ export default async function Overview() {
             </p>
           </div>
           <div className="rounded-xl border bg-background p-4">
-            <p className="text-sm text-muted-foreground">Connected accounts</p>
-            <p className="mt-2 text-2xl font-semibold">{accounts.length}</p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Landmark /> Loan debt
+            </div>
+            <p className="mt-2 text-2xl font-semibold">
+              <PrivateAmount>{money(String(loanDebt))}</PrivateAmount>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Across linked loan accounts</p>
           </div>
         </div>
       </section>

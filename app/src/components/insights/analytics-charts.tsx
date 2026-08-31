@@ -145,14 +145,43 @@ export function MonthlySpendDebtRadar({
         The latest twelve calendar months, indexed to each measure&apos;s highest month.
       </p>
       {data.some((point) => point.spending || point.debt) ? (
-        <ChartContainer config={monthlyRadarConfig} className="mx-auto mt-5 min-h-[400px] w-full max-w-3xl">
-          <RadarChart data={data} accessibilityLayer>
-            <ChartTooltip content={<ChartTooltipContent />} />
+        <ChartContainer config={monthlyRadarConfig} className="mx-auto mt-5 min-h-[440px] w-full max-w-3xl">
+          <RadarChart
+            accessibilityLayer
+            data={data}
+            margin={{ top: 24, right: 36, bottom: 8, left: 36 }}
+          >
+            <ChartTooltip
+              content={
+                <ChartTooltipContent labelFormatter={(value) => monthLabel(String(value))} />
+              }
+            />
             <PolarGrid gridType="polygon" />
-            <PolarAngleAxis dataKey="month" tickFormatter={monthLabel} tick={{ fontSize: 11 }} />
+            <PolarAngleAxis
+              axisLine={false}
+              dataKey="month"
+              tick={{ fontSize: 11 }}
+              tickFormatter={monthLabel}
+              tickLine={false}
+            />
             <PolarRadiusAxis axisLine={false} domain={[0, 100]} tick={false} />
-            <Radar dataKey="spendingIndex" fill="var(--color-spendingIndex)" fillOpacity={0} stroke="var(--color-spendingIndex)" strokeWidth={2} />
-            <Radar dataKey="debtIndex" fill="var(--color-debtIndex)" fillOpacity={0} stroke="var(--color-debtIndex)" strokeDasharray="5 4" strokeWidth={2} />
+            <Radar
+              dataKey="spendingIndex"
+              dot={{ fill: "var(--color-spendingIndex)", r: 3 }}
+              fill="var(--color-spendingIndex)"
+              fillOpacity={0.14}
+              stroke="var(--color-spendingIndex)"
+              strokeWidth={2}
+            />
+            <Radar
+              dataKey="debtIndex"
+              dot={{ fill: "var(--color-debtIndex)", r: 3 }}
+              fill="var(--color-debtIndex)"
+              fillOpacity={0.04}
+              stroke="var(--color-debtIndex)"
+              strokeDasharray="5 4"
+              strokeWidth={2}
+            />
             <ChartLegend content={<ChartLegendContent />} />
           </RadarChart>
         </ChartContainer>

@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/table";
 import { money, shortDate } from "@/lib/api";
 import { api } from "@/lib/api-server";
+import { isValidCustomInsightsRange } from "@/lib/insights-date-range";
 import type { Analytics, AnalyticsRange } from "@/lib/types";
-import { ArrowDownRight, ArrowRightLeft, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowRightLeft, ArrowUpRight, Info } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -44,9 +45,14 @@ export default async function Insights({
   searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }) {
   const params = await searchParams;
-  const validDate = (value?: string) =>
-    Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-  const custom = validDate(params.start) && validDate(params.end);
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+  const custom = isValidCustomInsightsRange(
+    params.start,
+    params.end,
+    today,
+  );
   const selected = custom
     ? "custom"
     : ranges.some(([value]) => value === params.range)
@@ -106,30 +112,36 @@ export default async function Insights({
               >
                 Custom
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 p-3">
+              <DropdownMenuContent align="end" className="w-[min(23rem,calc(100vw-2rem))] p-3">
                 <form action="/insights" className="grid gap-3">
-                  <div>
-                    <Label htmlFor="start">From</Label>
-                    <Input
-                      id="start"
-                      name="start"
-                      type="date"
-                      defaultValue={custom ? params.start : ""}
-                      className="mt-2 w-full"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="end">To</Label>
-                    <Input
-                      id="end"
-                      name="end"
-                      type="date"
-                      defaultValue={custom ? params.end : ""}
-                      className="mt-2 w-full"
-                      required
-                    />
-                  </div>
+                  <fieldset>
+                    <legend className="text-sm font-medium">Date range</legend>
+                    <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <div>
+                        <Label htmlFor="start" className="sr-only">From</Label>
+                        <Input
+                          id="start"
+                          name="start"
+                          type="date"
+                          defaultValue={custom ? params.start : ""}
+                          max={today}
+                          required
+                        />
+                      </div>
+                      <ArrowRight aria-hidden className="size-4 text-muted-foreground" />
+                      <div>
+                        <Label htmlFor="end" className="sr-only">To</Label>
+                        <Input
+                          id="end"
+                          name="end"
+                          type="date"
+                          defaultValue={custom ? params.end : ""}
+                          max={today}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
                   <Button type="submit" size="sm" className="w-full">
                     Apply range
                   </Button>
@@ -140,16 +152,19 @@ export default async function Insights({
         </div>
         <div className="mt-7 grid gap-3 sm:grid-cols-3">
           <Metric
+            description="Money paid to shops, services, and bills. Transfers and debt payments are not included."
             icon={<ArrowDownRight className="size-4" />}
             label="Spending"
             value={money(analytics.spending_total)}
           />
           <Metric
+            description="Money that came into your connected accounts, such as paychecks or refunds."
             icon={<ArrowUpRight className="size-4 text-primary" />}
             label="Inflows"
             value={money(analytics.inflows_total)}
           />
           <Metric
+            description="Money moved between your own accounts, including transfers and debt payments. It is not counted as spending."
             icon={<ArrowRightLeft className="size-4" />}
             label="Internal movements"
             value={money(analytics.movements_total)}
@@ -266,20 +281,33 @@ export default async function Insights({
 }
 
 function Metric({
+  description,
   icon,
   label,
   value,
 }: {
+  description: string;
   icon: ReactNode;
   label: string;
   value: string;
 }) {
   return (
     <div className="rounded-xl border bg-background p-4">
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         {icon}
         {label}
-      </p>
+        <details className="group relative">
+          <summary
+            aria-label={`What ${label.toLowerCase()} means`}
+            className="flex size-4 cursor-pointer list-none items-center justify-center rounded-full outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
+          >
+            <Info aria-hidden className="size-3.5" />
+          </summary>
+          <p className="absolute left-0 top-6 z-10 w-56 rounded-lg border bg-popover p-3 text-xs leading-relaxed text-popover-foreground shadow-md">
+            {description}
+          </p>
+        </details>
+      </div>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
   );

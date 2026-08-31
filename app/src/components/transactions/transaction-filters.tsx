@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Account } from "@/lib/types";
-import { Search } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -43,7 +43,7 @@ export function TransactionFilters({ accounts }: { accounts: Account[] }) {
     return () => window.clearTimeout(timer);
   }, [params, search, update]);
   return (
-    <section className="grid gap-4 border-b pb-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(180px,1fr)_190px_145px_145px_140px_120px_auto] 2xl:items-end">
+    <section className="grid gap-4 border-b pb-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(180px,1fr)_190px_300px_140px_120px_auto] 2xl:items-end">
       <div>
         <Label htmlFor="search">Search</Label>
         <div className="relative mt-2">
@@ -86,26 +86,30 @@ export function TransactionFilters({ accounts }: { accounts: Account[] }) {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <Label htmlFor="start">From</Label>
-        <Input
-          id="start"
-          type="date"
-          value={params.get("start") ?? ""}
-          onChange={(event) => update({ start: event.target.value || null })}
-          className="mt-2"
-        />
-      </div>
-      <div>
-        <Label htmlFor="end">To</Label>
-        <Input
-          id="end"
-          type="date"
-          value={params.get("end") ?? ""}
-          onChange={(event) => update({ end: event.target.value || null })}
-          className="mt-2"
-        />
-      </div>
+      <fieldset className="min-w-0">
+        <legend className="text-sm font-medium">Date range</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+          <div>
+            <Label htmlFor="start" className="sr-only">From</Label>
+            <Input
+              id="start"
+              type="date"
+              value={params.get("start") ?? ""}
+              onChange={(event) => update({ start: event.target.value || null })}
+            />
+          </div>
+          <ArrowRight aria-hidden className="mx-auto hidden size-4 text-muted-foreground sm:block" />
+          <div>
+            <Label htmlFor="end" className="sr-only">To</Label>
+            <Input
+              id="end"
+              type="date"
+              value={params.get("end") ?? ""}
+              onChange={(event) => update({ end: event.target.value || null })}
+            />
+          </div>
+        </div>
+      </fieldset>
       <div>
         <Label htmlFor="status">Status</Label>
         <Select

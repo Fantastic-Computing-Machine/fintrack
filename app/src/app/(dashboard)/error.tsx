@@ -4,7 +4,7 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 import { useEffect } from "react";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export default function DashboardError({
   error,
@@ -33,9 +33,9 @@ export default function DashboardError({
             <RotateCcw className="size-4" aria-hidden="true" />
             Try again
           </Button>
-          <Button variant="outline" render={<Link href="/" />}>
+          <Link href="/" className={buttonVariants({ variant: "outline" })}>
             Back to overview
-          </Button>
+          </Link>
         </div>
       </section>
     </main>
